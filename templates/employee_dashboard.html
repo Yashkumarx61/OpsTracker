@@ -4,9 +4,9 @@
 {% block content %}
 
 <!-- Page Header -->
-<div class="mb-8">
-    <h1 class="text-3xl font-extrabold tracking-tight text-white">My Tasks</h1>
-    <p class="mt-1 text-sm text-gray-400">View and update the status of tasks assigned to you.</p>
+<div class="page-header">
+    <h1 class="page-title">My Tasks</h1>
+    <p class="page-subtitle">Drag tasks between columns to update status, or use the buttons below each card.</p>
 </div>
 
 <!-- ===== TASK STATS ===== -->
@@ -15,169 +15,379 @@
 {% set done_count = grouped['Done']|length %}
 {% set total = todo_count + prog_count + done_count %}
 
-<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total</p>
-        <p class="mt-1 text-2xl font-bold text-white">{{ total }}</p>
+<div class="stats-grid">
+    <div class="stat-card">
+        <p class="stat-label">Total</p>
+        <p class="stat-value" id="stat-total">{{ total }}</p>
     </div>
-    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">To-Do</p>
-        <p class="mt-1 text-2xl font-bold text-amber-400">{{ todo_count }}</p>
+    <div class="stat-card">
+        <p class="stat-label">To-Do</p>
+        <p class="stat-value stat-value-amber" id="stat-todo">{{ todo_count }}</p>
     </div>
-    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-sky-500">In-Progress</p>
-        <p class="mt-1 text-2xl font-bold text-sky-400">{{ prog_count }}</p>
+    <div class="stat-card">
+        <p class="stat-label">In-Progress</p>
+        <p class="stat-value stat-value-sky" id="stat-progress">{{ prog_count }}</p>
     </div>
-    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-500">Done</p>
-        <p class="mt-1 text-2xl font-bold text-emerald-400">{{ done_count }}</p>
+    <div class="stat-card">
+        <p class="stat-label">Done</p>
+        <p class="stat-value stat-value-emerald" id="stat-done">{{ done_count }}</p>
     </div>
 </div>
 
+<!-- ===== TEAM AVAILABILITY ===== -->
+{% if team_members %}
+<div class="team-availability-card">
+    <div class="team-availability-header">
+        <h3 class="team-availability-title">
+            <svg class="team-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+            Team Member Availability Status
+        </h3>
+    </div>
+    <div class="team-availability-list">
+        {% for member in team_members %}
+        <div class="team-member-chip">
+            <span class="status-dot status-dot-{{ member.current_status|lower|replace(' ', '-') }}"></span>
+            <span class="member-name">{{ member.full_name }}</span>
+            <span class="member-status-text">({{ member.current_status }})</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- ===== KANBAN BOARD ===== -->
-<div class="grid gap-6 md:grid-cols-3">
+<div class="grid-3-kanban">
 
     <!-- ── TO-DO ── -->
     <div>
-        <div class="mb-4 flex items-center gap-2">
-            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10">
-                <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+        <div class="section-header">
+            <span class="section-icon icon-amber">
+                <span class="kanban-dot dot-amber"></span>
             </span>
-            <h2 class="text-base font-bold text-white">To-Do</h2>
-            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ todo_count }}</span>
+            <h2 class="section-title">To-Do</h2>
+            <span class="section-count" id="count-todo">{{ todo_count }}</span>
         </div>
-        <div class="space-y-3">
+        <div class="card-list kanban-column" id="col-todo" data-status="To-Do">
             {% for task in grouped['To-Do'] %}
-            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 transition hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/5">
-                <h3 class="font-semibold text-white">{{ task.title }}</h3>
-                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+            <div class="kanban-card" data-task-id="{{ task.id }}">
+                <h3 class="card-title">{{ task.title }}</h3>
+                <p class="card-subtitle">{{ task.project_title }}</p>
 
                 {% if task.due_date %}
-                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                    Due: {{ task.due_date }}
+                <div class="card-meta">
+                    <span class="card-meta-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                        Due: {{ task.due_date }}
+                    </span>
                 </div>
                 {% endif %}
 
-                <!-- Status controls -->
-                <div class="mt-3 flex gap-2">
+                <!-- Status controls (fallback for non-drag) -->
+                <div class="status-controls">
                     <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="status" value="In-Progress">
-                        <button type="submit"
-                            class="rounded-lg bg-sky-600/20 px-3 py-1.5 text-xs font-semibold text-sky-400 ring-1 ring-sky-500/20 transition hover:bg-sky-600/30">
-                            → In-Progress
-                        </button>
+                        <button type="submit" class="status-btn status-btn-sky">→ In-Progress</button>
                     </form>
                     <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="status" value="Done">
-                        <button type="submit"
-                            class="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20 transition hover:bg-emerald-600/30">
-                            ✓ Done
-                        </button>
+                        <button type="submit" class="status-btn status-btn-emerald">✓ Done</button>
                     </form>
                 </div>
             </div>
-            {% else %}
-            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
-                <p class="text-sm text-gray-600">No to-do tasks 🎉</p>
-            </div>
             {% endfor %}
+            <!-- Empty placeholder (shown when column is empty) -->
+            <div class="kanban-empty kanban-drop-placeholder {% if grouped['To-Do'] %}hidden{% endif %}">
+                Drop tasks here
+            </div>
         </div>
     </div>
 
     <!-- ── IN-PROGRESS ── -->
     <div>
-        <div class="mb-4 flex items-center gap-2">
-            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/10">
-                <span class="h-2.5 w-2.5 rounded-full bg-sky-400 animate-pulse"></span>
+        <div class="section-header">
+            <span class="section-icon icon-sky">
+                <span class="kanban-dot dot-sky dot-pulse"></span>
             </span>
-            <h2 class="text-base font-bold text-white">In-Progress</h2>
-            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ prog_count }}</span>
+            <h2 class="section-title">In-Progress</h2>
+            <span class="section-count" id="count-progress">{{ prog_count }}</span>
         </div>
-        <div class="space-y-3">
+        <div class="card-list kanban-column" id="col-progress" data-status="In-Progress">
             {% for task in grouped['In-Progress'] %}
-            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 transition hover:border-sky-500/30 hover:shadow-lg hover:shadow-sky-500/5">
-                <h3 class="font-semibold text-white">{{ task.title }}</h3>
-                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+            <div class="kanban-card" data-task-id="{{ task.id }}">
+                <h3 class="card-title">{{ task.title }}</h3>
+                <p class="card-subtitle">{{ task.project_title }}</p>
 
                 {% if task.due_date %}
-                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                    Due: {{ task.due_date }}
+                <div class="card-meta">
+                    <span class="card-meta-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                        Due: {{ task.due_date }}
+                    </span>
                 </div>
                 {% endif %}
 
                 <!-- Status controls -->
-                <div class="mt-3 flex gap-2">
+                <div class="status-controls">
                     <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="status" value="To-Do">
-                        <button type="submit"
-                            class="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-400 ring-1 ring-amber-500/20 transition hover:bg-amber-600/30">
-                            ← To-Do
-                        </button>
+                        <button type="submit" class="status-btn status-btn-amber">← To-Do</button>
                     </form>
                     <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="status" value="Done">
-                        <button type="submit"
-                            class="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20 transition hover:bg-emerald-600/30">
-                            ✓ Done
-                        </button>
+                        <button type="submit" class="status-btn status-btn-emerald">✓ Done</button>
                     </form>
                 </div>
             </div>
-            {% else %}
-            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
-                <p class="text-sm text-gray-600">Nothing in progress</p>
-            </div>
             {% endfor %}
+            <div class="kanban-empty kanban-drop-placeholder {% if grouped['In-Progress'] %}hidden{% endif %}">
+                Drop tasks here
+            </div>
         </div>
     </div>
 
     <!-- ── DONE ── -->
     <div>
-        <div class="mb-4 flex items-center gap-2">
-            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
-                <svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div class="section-header">
+            <span class="section-icon icon-emerald">
+                <svg style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </span>
-            <h2 class="text-base font-bold text-white">Done</h2>
-            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ done_count }}</span>
+            <h2 class="section-title">Done</h2>
+            <span class="section-count" id="count-done">{{ done_count }}</span>
         </div>
-        <div class="space-y-3">
+        <div class="card-list kanban-column" id="col-done" data-status="Done">
             {% for task in grouped['Done'] %}
-            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 opacity-75 transition hover:border-emerald-500/30 hover:opacity-100">
-                <h3 class="font-semibold text-white line-through decoration-gray-600">{{ task.title }}</h3>
-                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+            <div class="kanban-card kanban-card-done" data-task-id="{{ task.id }}">
+                <h3 class="card-title done-text">{{ task.title }}</h3>
+                <p class="card-subtitle">{{ task.project_title }}</p>
 
                 {% if task.due_date %}
-                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                    Due: {{ task.due_date }}
+                <div class="card-meta">
+                    <span class="card-meta-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                        Due: {{ task.due_date }}
+                    </span>
                 </div>
                 {% endif %}
 
                 <!-- Reopen control -->
-                <div class="mt-3">
+                <div class="status-controls">
                     <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="status" value="To-Do">
-                        <button type="submit"
-                            class="rounded-lg bg-gray-700/50 px-3 py-1.5 text-xs font-medium text-gray-400 ring-1 ring-gray-700 transition hover:bg-gray-700 hover:text-white">
-                            ↺ Reopen
-                        </button>
+                        <button type="submit" class="status-btn status-btn-ghost">↺ Reopen</button>
                     </form>
                 </div>
             </div>
-            {% else %}
-            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
-                <p class="text-sm text-gray-600">No completed tasks yet</p>
-            </div>
             {% endfor %}
+            <div class="kanban-empty kanban-drop-placeholder {% if grouped['Done'] %}hidden{% endif %}">
+                Drop tasks here
+            </div>
         </div>
     </div>
 
 </div>
+
+<!-- ===== SUPPORT TICKETS SECTION ===== -->
+<div style="margin-top: 36px;">
+    <div class="section-header">
+        <span class="section-icon icon-rose">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-12h5.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125H7.5a2.25 2.25 0 01-2.25-2.25V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 011.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" /></svg>
+        </span>
+        <h2 class="section-title">Support Tickets</h2>
+        <span class="section-count">{{ tickets|length if tickets else 0 }}</span>
+    </div>
+
+    <div class="grid-3" style="grid-template-columns: 1fr 2fr; gap: 24px;">
+        <!-- Raise Ticket Form -->
+        <div class="card-form">
+            <h3 class="card-title" style="margin-bottom: 12px;">Raise a Ticket to Admin</h3>
+            <form method="POST" action="{{ url_for('create_ticket') }}" class="form-group">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="title" required placeholder="Ticket Subject / Issue Title" class="input">
+                <select name="priority" class="select">
+                    <option value="Low">Low Priority</option>
+                    <option value="Medium" selected>Medium Priority</option>
+                    <option value="High">High Priority</option>
+                    <option value="Urgent">Urgent Priority</option>
+                </select>
+                <textarea name="description" rows="3" required placeholder="Describe your issue or request in detail…" class="input textarea"></textarea>
+                <button type="submit" class="btn-primary btn-rose">Submit Ticket</button>
+            </form>
+        </div>
+
+        <!-- My Raised Tickets List -->
+        <div class="card-list">
+            {% if tickets %}
+            {% for ticket in tickets %}
+            <div class="card">
+                <div class="card-top">
+                    <div class="card-top-left">
+                        <h3 class="card-title">#{{ ticket.id }}: {{ ticket.title }}</h3>
+                        <p class="card-subtitle">Raised on {{ ticket.created_at }}</p>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <span class="badge badge-{{ ticket.priority|lower }}">
+                            {{ ticket.priority }}
+                        </span>
+                        <span class="badge {% if ticket.status == 'Resolved' %}badge-completed{% elif ticket.status == 'In-Progress' %}badge-progress{% elif ticket.status == 'Closed' %}badge-todo{% else %}badge-ongoing{% endif %}">
+                            {{ ticket.status }}
+                        </span>
+                    </div>
+                </div>
+
+                <p class="card-desc" style="margin-top: 8px;">{{ ticket.description }}</p>
+
+                {% if ticket.admin_reply %}
+                <div class="ticket-reply-box">
+                    <div class="ticket-reply-header">
+                        <span>Admin Response (by {{ ticket.replier_name or 'Admin' }})</span>
+                        <span>{{ ticket.replied_at or '' }}</span>
+                    </div>
+                    <div class="ticket-reply-content">
+                        {{ ticket.admin_reply }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="card" style="text-align:center;padding:32px;color:var(--text-tertiary)">
+                <p>You haven't raised any support tickets yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Toast notification container -->
+<div id="kanban-toast" class="kanban-toast hidden"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+
+    // ── Toast notification helper ──
+    const toast = document.getElementById('kanban-toast');
+    function showToast(message, type) {
+        toast.textContent = message;
+        toast.className = 'kanban-toast kanban-toast-' + type;
+        // Force reflow for re-animation
+        void toast.offsetWidth;
+        toast.classList.add('kanban-toast-show');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => {
+            toast.classList.remove('kanban-toast-show');
+        }, 3000);
+    }
+
+    // ── Update stat counters after drag ──
+    function updateStats() {
+        const todoCount = document.querySelectorAll('#col-todo > .kanban-card').length;
+        const progCount = document.querySelectorAll('#col-progress > .kanban-card').length;
+        const doneCount = document.querySelectorAll('#col-done > .kanban-card').length;
+        const total = todoCount + progCount + doneCount;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-todo').textContent = todoCount;
+        document.getElementById('stat-progress').textContent = progCount;
+        document.getElementById('stat-done').textContent = doneCount;
+
+        document.getElementById('count-todo').textContent = todoCount;
+        document.getElementById('count-progress').textContent = progCount;
+        document.getElementById('count-done').textContent = doneCount;
+
+        // Toggle empty placeholders
+        document.querySelectorAll('.kanban-column').forEach(col => {
+            const cards = col.querySelectorAll('.kanban-card');
+            const empty = col.querySelector('.kanban-drop-placeholder');
+            if (empty) {
+                empty.classList.toggle('hidden', cards.length > 0);
+            }
+        });
+    }
+
+    // ── Update card visual style based on column ──
+    function updateCardStyle(card, status) {
+        if (status === 'Done') {
+            card.classList.add('kanban-card-done');
+            const title = card.querySelector('.card-title');
+            if (title) title.classList.add('done-text');
+        } else {
+            card.classList.remove('kanban-card-done');
+            const title = card.querySelector('.card-title');
+            if (title) title.classList.remove('done-text');
+        }
+    }
+
+    // ── Send status update to API ──
+    async function updateTaskStatus(taskId, newStatus, cardEl, fromCol) {
+        try {
+            const res = await fetch('/api/tasks/' + taskId + '/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.ok) {
+                // Revert: move card back to original column
+                fromCol.appendChild(cardEl);
+                showToast(data.error || 'Failed to update task', 'error');
+                updateStats();
+                return;
+            }
+
+            updateCardStyle(cardEl, newStatus);
+            showToast('Moved to ' + newStatus, 'success');
+            updateStats();
+        } catch (err) {
+            // Network error: revert
+            fromCol.appendChild(cardEl);
+            showToast('Network error — please retry', 'error');
+            updateStats();
+        }
+    }
+
+    // ── Initialize SortableJS on each kanban column ──
+    document.querySelectorAll('.kanban-column').forEach(col => {
+        Sortable.create(col, {
+            group: 'kanban',
+            animation: 200,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            ghostClass: 'kanban-ghost',
+            chosenClass: 'kanban-chosen',
+            dragClass: 'kanban-drag',
+            draggable: '.kanban-card',
+            filter: '.kanban-drop-placeholder',
+            // Delay on mobile to distinguish scroll vs drag
+            delay: 50,
+            delayOnTouchOnly: true,
+
+            onEnd: function(evt) {
+                const card = evt.item;
+                const fromCol = evt.from;
+                const toCol = evt.to;
+                const newStatus = toCol.dataset.status;
+                const taskId = card.dataset.taskId;
+
+                if (fromCol === toCol) return; // No column change
+
+                updateTaskStatus(taskId, newStatus, card, fromCol);
+            },
+        });
+    });
+
+    // Initial stats sync
+    updateStats();
+})();
+</script>
 {% endblock %}

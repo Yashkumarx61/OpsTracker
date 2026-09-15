@@ -18,9 +18,8 @@ class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "production")
     DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
 
-    # MySQL database
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = int(os.getenv("DB_PORT", 3306))
-    DB_USER = os.getenv("DB_USER", "root")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-    DB_NAME = os.getenv("DB_NAME", "opstracker")
+    # SQLite database (file lives next to app.py by default)
+    DB_PATH = os.getenv(
+        "DB_PATH",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "opstracker.db"),
+    )

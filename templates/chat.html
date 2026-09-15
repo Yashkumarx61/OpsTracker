@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Chat Hub — OpsTracker{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="page-header" style="margin-bottom: 20px;">
+    <h1 class="page-title">Live Chat Hub 💬</h1>
+    <p class="page-subtitle">Collaborate on team projects or start 1-on-1 direct conversations with colleagues.</p>
+</div>
+
+<!-- ===== CHAT HUB CONTAINER ===== -->
+<div class="chat-hub-card">
+    <div class="chat-layout">
+
+        <!-- ────────── CHAT SIDEBAR ────────── -->
+        <aside class="chat-sidebar">
+
+            <!-- Section 1: Project Channels -->
+            <div class="chat-section">
+                <div class="chat-section-header">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="chat-section-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                    </svg>
+                    <span>Project Channels</span>
+                </div>
+                <div class="chat-nav-list">
+                    {% for proj in projects %}
+                    <button type="button" class="chat-nav-item channel-item" data-type="project" data-id="{{ proj.id }}" data-name="# {{ proj.title }}" data-sub="Team: {{ proj.team_name }}">
+                        <span class="chat-hash">#</span>
+                        <span class="chat-item-name">{{ proj.title }}</span>
+                    </button>
+                    {% else %}
+                    <div class="chat-item-empty">No active projects</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Section 2: Direct Messages -->
+            <div class="chat-section" style="margin-top: 20px;">
+                <div class="chat-section-header">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="chat-section-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
+                    </svg>
+                    <span>Direct Messages</span>
+                </div>
+                <div class="chat-nav-list">
+                    {% for c in colleagues %}
+                    <button type="button" class="chat-nav-item direct-item" data-type="direct" data-id="{{ c.id }}" data-name="{{ c.full_name }}" data-sub="{{ c.role }} • {{ c.current_status }}" data-status="{{ c.current_status }}">
+                        <span class="status-dot status-dot-{{ (c.current_status or 'Available')|lower|replace(' ', '-') }}"></span>
+                        <span class="chat-item-name">{{ c.full_name }}</span>
+                    </button>
+                    {% else %}
+                    <div class="chat-item-empty">No colleagues online</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- ────────── MAIN CHAT AREA ────────── -->
+        <main class="chat-main">
+            <!-- Active Channel Header -->
+            <header class="chat-main-header" id="chat-header">
+                <div class="chat-header-info">
+                    <h2 class="chat-header-title" id="chat-title">Select a channel or conversation</h2>
+                    <span class="chat-header-sub" id="chat-sub">Choose from the left sidebar to start chatting</span>
+                </div>
+            </header>
+
+            <!-- Message Stream Area -->
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-placeholder">
+                    <div class="chat-placeholder-icon">💬</div>
+                    <h3>Welcome to Live Chat Hub</h3>
+                    <p>Select a project channel to talk with your team or select a colleague for direct messaging.</p>
+                </div>
+            </div>
+
+            <!-- Chat Input Form -->
+            <form class="chat-input-form hidden" id="chat-form">
+                <input type="text" id="chat-input" placeholder="Type your message... (Press Enter to send)" autocomplete="off" class="input chat-input-field">
+                <button type="submit" class="btn-primary btn-accent chat-send-btn">
+                    <span>Send</span>
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
+                </button>
+            </form>
+        </main>
+
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+
+    let currentChat = {
+        type: null,    // 'project' or 'direct'
+        id: null,      // project_id or recipient_id
+        name: '',
+        sub: ''
+    };
+
+    const currentUserId = {{ current_user.id }};
+
+    const headerTitle = document.getElementById('chat-title');
+    const headerSub = document.getElementById('chat-sub');
+    const messagesBox = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+
+    let pollInterval = null;
+
+    // Select channel/direct chat item
+    document.querySelectorAll('.chat-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.chat-nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            currentChat.type = btn.dataset.type;
+            currentChat.id = btn.dataset.id;
+            currentChat.name = btn.dataset.name;
+            currentChat.sub = btn.dataset.sub;
+
+            // Update Header
+            headerTitle.textContent = currentChat.name;
+            headerSub.textContent = currentChat.sub;
+
+            // Show Form
+            chatForm.classList.remove('hidden');
+
+            // Load Messages
+            loadMessages();
+
+            // Setup polling
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(loadMessages, 3000);
+        });
+    });
+
+    async function loadMessages() {
+        if (!currentChat.type || !currentChat.id) return;
+
+        const url = currentChat.type === 'project'
+            ? '/api/chat/project/' + currentChat.id
+            : '/api/chat/direct/' + currentChat.id;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!res.ok) return;
+
+            renderMessages(data);
+        } catch (e) {
+            console.error('Error fetching chat messages:', e);
+        }
+    }
+
+    function renderMessages(messages) {
+        if (!messages || messages.length === 0) {
+            messagesBox.innerHTML = '<div class="chat-placeholder"><p>No messages yet. Start the conversation below!</p></div>';
+            return;
+        }
+
+        const isAtBottom = messagesBox.scrollHeight - messagesBox.scrollTop <= messagesBox.clientHeight + 100;
+
+        messagesBox.innerHTML = messages.map(msg => {
+            const isMe = msg.sender_id === currentUserId;
+            const alignClass = isMe ? 'msg-me' : 'msg-other';
+            const timeStr = msg.created_at ? msg.created_at.substring(11, 16) : '';
+
+            return `
+                <div class="chat-msg-row ${alignClass}">
+                    <div class="chat-bubble">
+                        ${!isMe ? `<div class="chat-sender-name">${msg.sender_name} <span class="chat-sender-role">(${msg.sender_role})</span></div>` : ''}
+                        <div class="chat-text">${escapeHtml(msg.message)}</div>
+                        <div class="chat-time">${timeStr}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (isAtBottom) {
+            messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
+    }
+
+    // Send Message
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = chatInput.value.trim();
+        if (!text || !currentChat.type || !currentChat.id) return;
+
+        chatInput.value = '';
+
+        const payload = {
+            chat_type: currentChat.type,
+            message: text
+        };
+        if (currentChat.type === 'project') payload.project_id = parseInt(currentChat.id);
+        if (currentChat.type === 'direct') payload.recipient_id = parseInt(currentChat.id);
+
+        try {
+            const res = await fetch('/api/chat/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                loadMessages();
+            }
+        } catch (e) {
+            console.error('Error sending message:', e);
+        }
+    });
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    // Select first item by default if available
+    const firstItem = document.querySelector('.chat-nav-item');
+    if (firstItem) firstItem.click();
+
+})();
+</script>
+{% endblock %}

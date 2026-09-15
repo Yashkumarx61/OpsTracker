@@ -26,5 +26,7 @@ env/
 .DS_Store
 Thumbs.db
 
-# Docker
-mysql_data/
+# Database
+*.db
+*.sqlite3
+opstracker.db

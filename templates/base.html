@@ -1,91 +1,125 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="OpsTracker — Organizational Project & Task Tracker">
     <title>{% block title %}OpsTracker{% endblock %}</title>
 
-    <!-- Tailwind CSS v3 via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50:  '#eef2ff',
-                            100: '#e0e7ff',
-                            200: '#c7d2fe',
-                            300: '#a5b4fc',
-                            400: '#818cf8',
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                            700: '#4338ca',
-                            800: '#3730a3',
-                            900: '#312e81',
-                            950: '#1e1b4b',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
     <!-- Google Fonts — Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
+    <!-- SortableJS — Drag-and-drop for Kanban board -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+
     <!-- Custom styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
 
-<body class="h-full bg-gray-950 text-gray-100 font-sans antialiased">
+<body class="h-full font-sans antialiased">
 
     <!-- ===== NAVBAR ===== -->
     {% if current_user.is_authenticated %}
-    <nav class="sticky top-0 z-50 border-b border-gray-800/60 bg-gray-950/80 backdrop-blur-xl">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="flex h-16 items-center justify-between">
+    <nav class="nav-bar">
+        <div class="nav-inner">
+            <div class="nav-row">
 
-                <!-- Logo -->
-                <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2 group">
-                    <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-500/25 transition group-hover:shadow-brand-500/40">
-                        <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <!-- Left: Clock -->
+                <div class="nav-left">
+                    <div id="live-clock" class="live-clock">
+                        <svg class="clock-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div class="clock-text">
+                            <span id="clock-time" class="clock-time">--:--:-- --</span>
+                            <span id="clock-date" class="clock-date">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center: Logo -->
+                <a href="{{ url_for('dashboard') }}" class="nav-logo">
+                    <div class="logo-icon">
+                        <svg class="logo-svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
                         </svg>
                     </div>
-                    <span class="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                        OpsTracker
-                    </span>
+                    <span class="logo-text">OpsTracker</span>
                 </a>
 
-                <!-- Right side -->
-                <div class="flex items-center gap-4">
+                <!-- Right: Theme toggle, role, user, logout -->
+                <div class="nav-right">
+                    <!-- Chat Link -->
+                    <a href="{{ url_for('chat_hub') }}" class="nav-chat-btn" title="Live Chat Hub">
+                        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:18px;height:18px">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a.75.75 0 01-1.074-.85c.162-.647.502-1.854 1.134-2.88C4.088 15.82 3 14.004 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        </svg>
+                        <span class="nav-chat-text">Chat</span>
+                    </a>
+
+                    <!-- Notification Bell -->
+                    <div class="notif-wrapper" id="notif-wrapper">
+                        <button type="button" class="notif-btn" id="notif-btn" title="Notifications" aria-expanded="false">
+                            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:20px;height:20px">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                            </svg>
+                            <span class="notif-badge hidden" id="notif-badge">0</span>
+                        </button>
+                        <div class="notif-dropdown hidden" id="notif-dropdown">
+                            <div class="notif-header">
+                                <span class="notif-title">Notifications</span>
+                                <button type="button" class="btn-mark-read" id="btn-mark-read">Mark all read</button>
+                            </div>
+                            <div class="notif-list" id="notif-list">
+                                <div class="notif-empty">No notifications</div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Role badge -->
-                    <span class="hidden sm:inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
-                        {% if current_user.is_admin %}
-                            bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20
-                        {% else %}
-                            bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20
-                        {% endif %}
-                    ">
+                    <span class="role-badge {% if current_user.is_admin %}role-admin{% else %}role-employee{% endif %}">
                         {{ current_user.role }}
                     </span>
 
+                    <!-- Availability Status Dropdown -->
+                    <div class="user-status-wrapper" id="user-status-wrapper">
+                        <button type="button" class="status-dropdown-btn" id="status-dropdown-btn" aria-expanded="false" title="Change availability status">
+                            <span class="status-dot status-dot-{{ current_user.current_status|lower|replace(' ', '-') }}" id="nav-status-dot"></span>
+                            <span class="status-btn-text" id="nav-status-label">{{ current_user.current_status }}</span>
+                            <svg class="dropdown-chevron" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </button>
+                        <div class="status-dropdown-menu hidden" id="status-dropdown-menu">
+                            <button type="button" class="status-menu-item {% if current_user.current_status == 'Available' %}active{% endif %}" data-status="Available">
+                                <span class="status-dot status-dot-available"></span>
+                                <span>Available</span>
+                            </button>
+                            <button type="button" class="status-menu-item {% if current_user.current_status == 'On Call' %}active{% endif %}" data-status="On Call">
+                                <span class="status-dot status-dot-on-call"></span>
+                                <span>On Call</span>
+                            </button>
+                            <button type="button" class="status-menu-item {% if current_user.current_status == 'On Leave' %}active{% endif %}" data-status="On Leave">
+                                <span class="status-dot status-dot-on-leave"></span>
+                                <span>On Leave</span>
+                            </button>
+                            <button type="button" class="status-menu-item {% if current_user.current_status == 'Offline' %}active{% endif %}" data-status="Offline">
+                                <span class="status-dot status-dot-offline"></span>
+                                <span>Offline</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- User name -->
-                    <span class="text-sm text-gray-400">
+                    <span class="user-name">
                         {{ current_user.full_name }}
                     </span>
 
                     <!-- Logout -->
-                    <a href="{{ url_for('logout') }}"
-                       class="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-300 ring-1 ring-gray-700 transition hover:bg-gray-700 hover:text-white hover:ring-gray-600">
-                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <a href="{{ url_for('logout') }}" class="btn-logout">
+                        <svg class="btn-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                         </svg>
                         Logout
@@ -94,31 +128,46 @@
             </div>
         </div>
     </nav>
+    {% else %}
+    <!-- Unauthenticated: minimal top bar with clock and theme toggle -->
+    <div class="unauth-bar">
+        <div class="nav-inner">
+            <div class="unauth-row">
+                <div id="live-clock-unauth" class="live-clock">
+                    <svg class="clock-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="clock-text">
+                        <span id="clock-time-unauth" class="clock-time">--:--:-- --</span>
+                        <span id="clock-date-unauth" class="clock-date">Loading...</span>
+                    </div>
+                </div>
+                <button id="theme-toggle-unauth" class="theme-toggle" title="Toggle theme" aria-label="Toggle light/dark theme">
+                    <svg id="theme-icon-sun-unauth" class="theme-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+                    </svg>
+                    <svg id="theme-icon-moon-unauth" class="theme-icon hidden" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
     <!-- ===== FLASH MESSAGES ===== -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 space-y-2">
+    <div class="flash-container">
         {% for category, message in messages %}
-        <div class="flash-msg flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium shadow-lg
-            {% if category == 'success' %}
-                bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20
-            {% elif category == 'error' %}
-                bg-red-500/10 text-red-300 ring-1 ring-red-500/20
-            {% elif category == 'warning' %}
-                bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20
-            {% else %}
-                bg-brand-500/10 text-brand-300 ring-1 ring-brand-500/20
-            {% endif %}
-        ">
+        <div class="flash-msg flash-{{ category }}">
             <!-- Icon -->
             {% if category == 'success' %}
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg class="flash-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {% elif category == 'error' %}
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+            <svg class="flash-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
             {% else %}
-            <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+            <svg class="flash-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
             {% endif %}
             <span>{{ message }}</span>
         </div>
@@ -129,11 +178,11 @@
 
     <!-- ===== ERROR PAGE ===== -->
     {% if error_code %}
-    <div class="flex min-h-[60vh] items-center justify-center">
-        <div class="text-center">
-            <p class="text-7xl font-extrabold text-brand-500">{{ error_code }}</p>
-            <p class="mt-4 text-lg text-gray-400">{{ error_msg }}</p>
-            <a href="{{ url_for('dashboard') }}" class="mt-6 inline-block rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition hover:bg-brand-500">
+    <div class="error-page">
+        <div class="error-content">
+            <p class="error-code">{{ error_code }}</p>
+            <p class="error-msg">{{ error_msg }}</p>
+            <a href="{{ url_for('dashboard') }}" class="btn-primary">
                 Go to Dashboard
             </a>
         </div>
@@ -141,12 +190,196 @@
     {% endif %}
 
     <!-- ===== MAIN CONTENT ===== -->
-    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <main class="main-content">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- ===== AUTO-DISMISS FLASH MESSAGES ===== -->
+    <!-- ===== SCRIPTS ===== -->
     <script>
+        // ── Live Clock ──
+        function updateClock() {
+            const now = new Date();
+            const timeOpts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            const dateOpts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            const timeStr = now.toLocaleTimeString('en-US', timeOpts);
+            const dateStr = now.toLocaleDateString('en-US', dateOpts);
+
+            // Authenticated navbar
+            const ct = document.getElementById('clock-time');
+            const cd = document.getElementById('clock-date');
+            if (ct) ct.textContent = timeStr;
+            if (cd) cd.textContent = dateStr;
+
+            // Unauthenticated bar
+            const ctu = document.getElementById('clock-time-unauth');
+            const cdu = document.getElementById('clock-date-unauth');
+            if (ctu) ctu.textContent = timeStr;
+            if (cdu) cdu.textContent = dateStr;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ── Theme Toggle ──
+        (function() {
+            const root = document.documentElement;
+            const saved = localStorage.getItem('ops-theme') || 'light';
+            root.setAttribute('data-theme', saved);
+            updateToggleIcons(saved);
+
+            document.querySelectorAll('#theme-toggle, #theme-toggle-unauth').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const current = root.getAttribute('data-theme');
+                    const next = current === 'light' ? 'dark' : 'light';
+                    root.setAttribute('data-theme', next);
+                    localStorage.setItem('ops-theme', next);
+                    updateToggleIcons(next);
+                });
+            });
+
+            function updateToggleIcons(theme) {
+                // Main navbar icons
+                const sun = document.getElementById('theme-icon-sun');
+                const moon = document.getElementById('theme-icon-moon');
+                if (sun && moon) {
+                    sun.classList.toggle('hidden', theme === 'dark');
+                    moon.classList.toggle('hidden', theme === 'light');
+                }
+                // Unauth bar icons
+                const sunU = document.getElementById('theme-icon-sun-unauth');
+                const moonU = document.getElementById('theme-icon-moon-unauth');
+                if (sunU && moonU) {
+                    sunU.classList.toggle('hidden', theme === 'dark');
+                    moonU.classList.toggle('hidden', theme === 'light');
+                }
+            }
+        })();
+
+        // ── Availability Status Dropdown ──
+        (function() {
+            const btn = document.getElementById('status-dropdown-btn');
+            const menu = document.getElementById('status-dropdown-menu');
+            if (!btn || !menu) return;
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = menu.classList.toggle('hidden');
+                btn.setAttribute('aria-expanded', !isHidden);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.classList.add('hidden');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            menu.querySelectorAll('.status-menu-item').forEach(item => {
+                item.addEventListener('click', async () => {
+                    const status = item.dataset.status;
+                    menu.classList.add('hidden');
+                    btn.setAttribute('aria-expanded', 'false');
+
+                    try {
+                        const res = await fetch('/api/user/status', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: status })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.ok) {
+                            const label = document.getElementById('nav-status-label');
+                            const dot = document.getElementById('nav-status-dot');
+                            if (label) label.textContent = data.current_status;
+                            if (dot) {
+                                dot.className = 'status-dot status-dot-' + data.current_status.toLowerCase().replace(/\s+/g, '-');
+                            }
+                            menu.querySelectorAll('.status-menu-item').forEach(m => {
+                                m.classList.toggle('active', m.dataset.status === data.current_status);
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Failed to update status:', err);
+                    }
+                });
+            });
+        })();
+
+        // ── Notifications Center ──
+        (function() {
+            const btn = document.getElementById('notif-btn');
+            const dropdown = document.getElementById('notif-dropdown');
+            const badge = document.getElementById('notif-badge');
+            const list = document.getElementById('notif-list');
+            const markBtn = document.getElementById('btn-mark-read');
+            if (!btn || !dropdown) return;
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = dropdown.classList.toggle('hidden');
+                btn.setAttribute('aria-expanded', !isHidden);
+                if (!isHidden) fetchNotifications();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            if (markBtn) {
+                markBtn.addEventListener('click', async () => {
+                    try {
+                        await fetch('/api/notifications/read-all', { method: 'POST' });
+                        if (badge) badge.classList.add('hidden');
+                        fetchNotifications();
+                    } catch (e) {
+                        console.error('Failed to mark read', e);
+                    }
+                });
+            }
+
+            async function fetchNotifications() {
+                try {
+                    const res = await fetch('/api/notifications');
+                    const data = await res.json();
+                    if (!res.ok) return;
+
+                    // Update badge
+                    if (badge) {
+                        if (data.unread_count > 0) {
+                            badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+                    }
+
+                    // Render list
+                    if (list) {
+                        if (!data.notifications || data.notifications.length === 0) {
+                            list.innerHTML = '<div class="notif-empty">No notifications</div>';
+                        } else {
+                            list.innerHTML = data.notifications.map(item => `
+                                <a href="${item.link || '#'}" class="notif-item ${item.is_read ? '' : 'unread'}">
+                                    <div class="notif-item-title">${item.title}</div>
+                                    <div class="notif-item-msg">${item.message}</div>
+                                    <div class="notif-item-time">${item.created_at || ''}</div>
+                                </a>
+                            `).join('');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error fetching notifications:', e);
+                }
+            }
+
+            // Initial fetch & poll every 15s
+            fetchNotifications();
+            setInterval(fetchNotifications, 15000);
+        })();
+
+        // ── Auto-dismiss flash messages ──
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.flash-msg').forEach(el => {
                 setTimeout(() => {
