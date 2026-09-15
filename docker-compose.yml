@@ -1,0 +1,52 @@
+# ============================================================
+# OpsTracker — Docker Compose
+# Two-service stack: Flask web app + MySQL 8.0 database
+# ============================================================
+
+services:
+  # ── MySQL Database ──
+  db:
+    image: mysql:8.0
+    container_name: opstracker-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: opstracker
+      MYSQL_USER: opstracker_user
+      MYSQL_PASSWORD: opstracker_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      # Auto-run schema.sql on first startup
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # Persist data across container restarts
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Flask Web Application ──
+  web:
+    build: .
+    container_name: opstracker-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      SECRET_KEY: change-me-in-production
+      FLASK_ENV: production
+      FLASK_DEBUG: "0"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: opstracker_user
+      DB_PASSWORD: opstracker_pass
+      DB_NAME: opstracker
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

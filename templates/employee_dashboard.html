@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}My Tasks — OpsTracker{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-extrabold tracking-tight text-white">My Tasks</h1>
+    <p class="mt-1 text-sm text-gray-400">View and update the status of tasks assigned to you.</p>
+</div>
+
+<!-- ===== TASK STATS ===== -->
+{% set todo_count = grouped['To-Do']|length %}
+{% set prog_count = grouped['In-Progress']|length %}
+{% set done_count = grouped['Done']|length %}
+{% set total = todo_count + prog_count + done_count %}
+
+<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Total</p>
+        <p class="mt-1 text-2xl font-bold text-white">{{ total }}</p>
+    </div>
+    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">To-Do</p>
+        <p class="mt-1 text-2xl font-bold text-amber-400">{{ todo_count }}</p>
+    </div>
+    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-sky-500">In-Progress</p>
+        <p class="mt-1 text-2xl font-bold text-sky-400">{{ prog_count }}</p>
+    </div>
+    <div class="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-500">Done</p>
+        <p class="mt-1 text-2xl font-bold text-emerald-400">{{ done_count }}</p>
+    </div>
+</div>
+
+<!-- ===== KANBAN BOARD ===== -->
+<div class="grid gap-6 md:grid-cols-3">
+
+    <!-- ── TO-DO ── -->
+    <div>
+        <div class="mb-4 flex items-center gap-2">
+            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10">
+                <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+            </span>
+            <h2 class="text-base font-bold text-white">To-Do</h2>
+            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ todo_count }}</span>
+        </div>
+        <div class="space-y-3">
+            {% for task in grouped['To-Do'] %}
+            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 transition hover:border-amber-500/30 hover:shadow-lg hover:shadow-amber-500/5">
+                <h3 class="font-semibold text-white">{{ task.title }}</h3>
+                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+
+                {% if task.due_date %}
+                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    Due: {{ task.due_date }}
+                </div>
+                {% endif %}
+
+                <!-- Status controls -->
+                <div class="mt-3 flex gap-2">
+                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="In-Progress">
+                        <button type="submit"
+                            class="rounded-lg bg-sky-600/20 px-3 py-1.5 text-xs font-semibold text-sky-400 ring-1 ring-sky-500/20 transition hover:bg-sky-600/30">
+                            → In-Progress
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="Done">
+                        <button type="submit"
+                            class="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20 transition hover:bg-emerald-600/30">
+                            ✓ Done
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
+                <p class="text-sm text-gray-600">No to-do tasks 🎉</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ── IN-PROGRESS ── -->
+    <div>
+        <div class="mb-4 flex items-center gap-2">
+            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500/10">
+                <span class="h-2.5 w-2.5 rounded-full bg-sky-400 animate-pulse"></span>
+            </span>
+            <h2 class="text-base font-bold text-white">In-Progress</h2>
+            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ prog_count }}</span>
+        </div>
+        <div class="space-y-3">
+            {% for task in grouped['In-Progress'] %}
+            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 transition hover:border-sky-500/30 hover:shadow-lg hover:shadow-sky-500/5">
+                <h3 class="font-semibold text-white">{{ task.title }}</h3>
+                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+
+                {% if task.due_date %}
+                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    Due: {{ task.due_date }}
+                </div>
+                {% endif %}
+
+                <!-- Status controls -->
+                <div class="mt-3 flex gap-2">
+                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="To-Do">
+                        <button type="submit"
+                            class="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-400 ring-1 ring-amber-500/20 transition hover:bg-amber-600/30">
+                            ← To-Do
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="Done">
+                        <button type="submit"
+                            class="rounded-lg bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/20 transition hover:bg-emerald-600/30">
+                            ✓ Done
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
+                <p class="text-sm text-gray-600">Nothing in progress</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ── DONE ── -->
+    <div>
+        <div class="mb-4 flex items-center gap-2">
+            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
+                <svg class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </span>
+            <h2 class="text-base font-bold text-white">Done</h2>
+            <span class="ml-auto rounded-full bg-gray-800 px-2 py-0.5 text-xs font-semibold text-gray-400">{{ done_count }}</span>
+        </div>
+        <div class="space-y-3">
+            {% for task in grouped['Done'] %}
+            <div class="group rounded-xl border border-gray-800 bg-gray-900/50 p-4 opacity-75 transition hover:border-emerald-500/30 hover:opacity-100">
+                <h3 class="font-semibold text-white line-through decoration-gray-600">{{ task.title }}</h3>
+                <p class="mt-1 text-xs text-gray-500">{{ task.project_title }}</p>
+
+                {% if task.due_date %}
+                <div class="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                    Due: {{ task.due_date }}
+                </div>
+                {% endif %}
+
+                <!-- Reopen control -->
+                <div class="mt-3">
+                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="To-Do">
+                        <button type="submit"
+                            class="rounded-lg bg-gray-700/50 px-3 py-1.5 text-xs font-medium text-gray-400 ring-1 ring-gray-700 transition hover:bg-gray-700 hover:text-white">
+                            ↺ Reopen
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-dashed border-gray-800 p-6 text-center">
+                <p class="text-sm text-gray-600">No completed tasks yet</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

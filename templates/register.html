@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Register — OpsTracker{% endblock %}
+
+{% block content %}
+<div class="flex min-h-[80vh] items-center justify-center">
+    <div class="w-full max-w-md">
+
+        <!-- Header -->
+        <div class="mb-8 text-center">
+            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-xl shadow-emerald-500/25">
+                <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+                </svg>
+            </div>
+            <h1 class="mt-4 text-2xl font-bold tracking-tight text-white">Create your account</h1>
+            <p class="mt-1 text-sm text-gray-400">Join OpsTracker to manage projects & tasks</p>
+        </div>
+
+        <!-- Card -->
+        <div class="rounded-2xl border border-gray-800 bg-gray-900/50 p-8 shadow-2xl backdrop-blur-sm">
+            <form method="POST" action="{{ url_for('register') }}" class="space-y-5">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- Full Name -->
+                <div>
+                    <label for="full_name" class="block text-sm font-medium text-gray-300 mb-1.5">Full name</label>
+                    <input type="text" id="full_name" name="full_name" required autocomplete="name"
+                        class="block w-full rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                        placeholder="Jane Doe">
+                </div>
+
+                <!-- Email -->
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-300 mb-1.5">Email address</label>
+                    <input type="email" id="email" name="email" required autocomplete="email"
+                        class="block w-full rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                        placeholder="jane@company.com">
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
+                    <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"
+                        class="block w-full rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                        placeholder="Minimum 6 characters">
+                </div>
+
+                <!-- Confirm Password -->
+                <div>
+                    <label for="confirm_password" class="block text-sm font-medium text-gray-300 mb-1.5">Confirm password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password"
+                        class="block w-full rounded-xl border border-gray-700 bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                        placeholder="Re-enter your password">
+                </div>
+
+                <!-- Submit -->
+                <button type="submit"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all hover:shadow-emerald-500/40 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98]">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Create Account
+                </button>
+            </form>
+        </div>
+
+        <!-- Footer link -->
+        <p class="mt-6 text-center text-sm text-gray-500">
+            Already have an account?
+            <a href="{{ url_for('login') }}" class="font-semibold text-brand-400 transition hover:text-brand-300">Sign in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
