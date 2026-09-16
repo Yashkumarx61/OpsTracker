@@ -46,9 +46,9 @@
                 </div>
                 <div class="chat-nav-list">
                     {% for c in colleagues %}
-                    <button type="button" class="chat-nav-item direct-item" data-type="direct" data-id="{{ c.id }}" data-name="{{ c.full_name }}" data-sub="{{ c.role }} • {{ c.current_status }}" data-status="{{ c.current_status }}">
+                    <button type="button" class="chat-nav-item direct-item" data-type="direct" data-id="{{ c.id }}" data-name="{{ c.full_name }} [{{ c.employee_id or ('EMP-' ~ c.id) }}]" data-sub="{{ c.role }} • {{ c.current_status }}" data-status="{{ c.current_status }}">
                         <span class="status-dot status-dot-{{ (c.current_status or 'Available')|lower|replace(' ', '-') }}"></span>
-                        <span class="chat-item-name">{{ c.full_name }}</span>
+                        <span class="chat-item-name">{{ c.full_name }} <span class="emp-id-badge">{{ c.employee_id or ('EMP-' ~ c.id) }}</span></span>
                     </button>
                     {% else %}
                     <div class="chat-item-empty">No colleagues online</div>

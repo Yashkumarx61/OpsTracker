@@ -5,7 +5,10 @@
 
 <!-- Page Header -->
 <div class="page-header">
-    <h1 class="page-title">My Tasks</h1>
+    <div style="display:flex;align-items:center;gap:10px">
+        <h1 class="page-title">My Tasks</h1>
+        <span class="emp-id-badge" style="font-size:0.8rem;padding:4px 10px">{{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</span>
+    </div>
     <p class="page-subtitle">Drag tasks between columns to update status, or use the buttons below each card.</p>
 </div>
 
@@ -50,6 +53,7 @@
         <div class="team-member-chip">
             <span class="status-dot status-dot-{{ member.current_status|lower|replace(' ', '-') }}"></span>
             <span class="member-name">{{ member.full_name }}</span>
+            <span class="emp-id-badge">{{ member.employee_id or ('EMP-' ~ member.id) }}</span>
             <span class="member-status-text">({{ member.current_status }})</span>
         </div>
         {% endfor %}

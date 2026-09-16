@@ -121,12 +121,24 @@ def init_db():
     with open(schema_path, "r", encoding="utf-8") as f:
         db.executescript(f.read())
 
-    # Migration: add current_status column to users table if missing
+    # Migration: add current_status and employee_id columns if missing
     cur = db.execute("PRAGMA table_info(users)")
     columns = [row[1] for row in cur.fetchall()]
     if "current_status" not in columns:
         db.execute("ALTER TABLE users ADD COLUMN current_status TEXT NOT NULL DEFAULT 'Available'")
         db.commit()
+
+    if "employee_id" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN employee_id TEXT")
+        db.commit()
+
+    # Populate missing employee_ids
+    users_without_empid = db.execute("SELECT id FROM users WHERE employee_id IS NULL OR employee_id = ''").fetchall()
+    for row in users_without_empid:
+        uid = row[0]
+        emp_code = f"EMP-{1000 + uid}"
+        db.execute("UPDATE users SET employee_id = ? WHERE id = ?", (emp_code, uid))
+    db.commit()
 
     db.close()
     app.logger.info(f"Database initialized at {Config.DB_PATH}")
@@ -143,8 +155,9 @@ with app.app_context():
 class User(UserMixin):
     """Lightweight user wrapper for Flask-Login."""
 
-    def __init__(self, id, full_name, email, password_hash, role, current_status="Available", created_at=None):
+    def __init__(self, id, full_name, email, password_hash, role, employee_id=None, current_status="Available", created_at=None):
         self.id = id
+        self.employee_id = employee_id or f"EMP-{1000 + id}"
         self.full_name = full_name
         self.email = email
         self.password_hash = password_hash
@@ -254,13 +267,17 @@ def register():
             flash("An account with this email already exists.", "error")
             return render_template("register.html")
 
+        employee_id_input = request.form.get("employee_id", "").strip().upper()
+
         # Create user (default role: Employee)
         hashed = generate_password_hash(password)
         try:
-            execute_db(
+            new_id = execute_db(
                 "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
                 (full_name, email, hashed, "Employee"),
             )
+            final_emp_id = employee_id_input or f"EMP-{1000 + new_id}"
+            execute_db("UPDATE users SET employee_id = ? WHERE id = ?", (final_emp_id, new_id))
         except Exception:
             flash("Could not create account. Please try again.", "error")
             return render_template("register.html")
@@ -308,15 +325,15 @@ def admin_dashboard():
         ORDER BY p.created_at DESC
     """)
     tasks = query_db("""
-        SELECT tk.*, p.title AS project_title, u.full_name AS assignee_name, u.current_status AS assignee_status
+        SELECT tk.*, p.title AS project_title, u.full_name AS assignee_name, u.employee_id AS assignee_emp_id, u.current_status AS assignee_status
         FROM tasks tk
         JOIN projects p ON tk.project_id = p.id
         LEFT JOIN users u ON tk.assigned_to = u.id
         ORDER BY tk.due_date ASC
     """)
-    users = query_db("SELECT id, full_name, email, role, current_status FROM users ORDER BY full_name")
+    users = query_db("SELECT id, employee_id, full_name, email, role, current_status FROM users ORDER BY full_name")
     tickets = query_db("""
-        SELECT tk.*, u.full_name AS author_name, u.email AS author_email,
+        SELECT tk.*, u.full_name AS author_name, u.email AS author_email, u.employee_id AS author_emp_id,
                adm.full_name AS replier_name
         FROM tickets tk
         JOIN users u ON tk.user_id = u.id
@@ -453,7 +470,7 @@ def employee_dashboard():
     for task in tasks:
         grouped.get(task["status"], grouped["To-Do"]).append(task)
 
-    team_members = query_db("SELECT id, full_name, email, role, current_status FROM users ORDER BY full_name")
+    team_members = query_db("SELECT id, employee_id, full_name, email, role, current_status FROM users ORDER BY full_name")
 
     tickets = query_db("""
         SELECT tk.*, adm.full_name AS replier_name
@@ -676,7 +693,7 @@ def chat_hub():
             projects = query_db("SELECT p.*, t.team_name FROM projects p JOIN teams t ON p.team_id = t.id ORDER BY p.title")
 
     colleagues = query_db(
-        "SELECT id, full_name, email, role, current_status FROM users WHERE id != ? ORDER BY full_name",
+        "SELECT id, employee_id, full_name, email, role, current_status FROM users WHERE id != ? ORDER BY full_name",
         (current_user.id,)
     )
 

@@ -180,10 +180,10 @@ a {
 }
 
 .nav-left {
-    flex: 1;
     display: flex;
     align-items: center;
-    min-width: 0;
+    gap: 16px;
+    flex-shrink: 0;
 }
 
 .nav-right {
@@ -335,6 +335,23 @@ a {
 
 @media (min-width: 640px) {
     .user-name { display: inline; }
+}
+
+/* ── Employee ID Badge ── */
+.emp-id-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: var(--radius-sm);
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.04em;
+    background: var(--bg-surface);
+    color: var(--accent);
+    border: 1px solid var(--border-default);
+    margin-left: 4px;
+    flex-shrink: 0;
 }
 
 /* ── Employee Availability Status Selector ── */

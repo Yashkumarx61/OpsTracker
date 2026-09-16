@@ -45,6 +45,7 @@
         <div class="team-member-chip">
             <span class="status-dot status-dot-{{ (u.current_status or 'Available')|lower|replace(' ', '-') }}"></span>
             <span class="member-name">{{ u.full_name }}</span>
+            <span class="emp-id-badge">{{ u.employee_id or ('EMP-' ~ u.id) }}</span>
             <span class="member-status-text">({{ u.role }} • {{ u.current_status or 'Available' }})</span>
         </div>
         {% endfor %}
@@ -89,7 +90,7 @@
                     <select name="user_id" required class="select">
                         <option value="">Add member…</option>
                         {% for u in users %}
-                        <option value="{{ u.id }}">{{ u.full_name }}</option>
+                        <option value="{{ u.id }}">{{ u.full_name }} ({{ u.employee_id or ('EMP-' ~ u.id) }})</option>
                         {% endfor %}
                     </select>
                     <button type="submit" class="btn-sm btn-ghost">Add</button>
@@ -181,7 +182,7 @@
                 <select name="assigned_to" class="select">
                     <option value="">Assign to user (optional)…</option>
                     {% for u in users %}
-                    <option value="{{ u.id }}">{{ u.full_name }} ({{ u.role }})</option>
+                    <option value="{{ u.id }}">{{ u.full_name }} ({{ u.employee_id or ('EMP-' ~ u.id) }} • {{ u.role }})</option>
                     {% endfor %}
                 </select>
                 <input type="date" name="due_date" class="input">
@@ -208,6 +209,7 @@
                     <span class="card-meta-item">
                         <span class="status-dot status-dot-{{ (task.assignee_status or 'Available')|lower|replace(' ', '-') }}"></span>
                         {{ task.assignee_name }}
+                        {% if task.assignee_emp_id %}<span class="emp-id-badge">{{ task.assignee_emp_id }}</span>{% endif %}
                     </span>
                     {% endif %}
                     {% if task.due_date %}
@@ -243,7 +245,7 @@
             <div class="card-top">
                 <div class="card-top-left">
                     <h3 class="card-title">#{{ ticket.id }}: {{ ticket.title }}</h3>
-                    <p class="card-subtitle">Raised by {{ ticket.author_name }} ({{ ticket.author_email }}) on {{ ticket.created_at }}</p>
+                    <p class="card-subtitle">Raised by {{ ticket.author_name }} [{{ ticket.author_emp_id or ('EMP-' ~ ticket.user_id) }}] ({{ ticket.author_email }}) on {{ ticket.created_at }}</p>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                     <span class="badge badge-{{ ticket.priority|lower }}">
