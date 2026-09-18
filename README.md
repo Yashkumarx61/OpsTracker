@@ -50,6 +50,9 @@ The application is designed as a two-tier architecture: a Flask backend serving 
 
 ```
 OpsTracker/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions CI/CD pipeline definition
 ├── .env.example                # Environment variable template
 ├── .gitignore                  # Git ignore rules
 ├── Dockerfile                  # Container image definition
@@ -255,6 +258,17 @@ Create a `.env` file in the project root. See `.env.example` for the template.
 | `/employee/dashboard`              | GET      | Yes      | Employee | View assigned tasks                |
 | `/employee/tasks/<id>/status`      | POST     | Yes      | Employee | Update task status                 |
 | `/health`                          | GET      | No       | --       | Health check (JSON)                |
+
+---
+
+## CI/CD Pipeline (GitHub Actions)
+
+The repository includes an automated GitHub Actions workflow defined in `.github/workflows/ci.yml` that triggers on pushes and pull requests to `main`, `master`, and `develop` branches:
+
+- **Lint & Syntax Validation (`lint-and-validate`)**: Runs Python 3.11 dependency installation, `flake8` linting checks, and verifies script compilation (`py_compile`).
+- **Windows Server Environment & IIS Config Test (`windows-server-test`)**: Runs on a native `windows-latest` runner to verify Windows compatibility, install Python dependencies on Windows, validate IIS `web.config` XML schema via PowerShell, and test Flask app initialization.
+- **Docker Image Verification (`docker-build`)**: Builds the multi-stage Docker image using `docker/build-push-action` to ensure image health and build integrity.
+- **Windows Server Deployment (Optional)**: Contains a pre-configured template for automated remote deployment to Windows Server via SSH/WinRM once server credentials are configured in GitHub Repository Secrets.
 
 ---
 
