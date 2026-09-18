@@ -44,7 +44,7 @@ jobs:
 
   windows-server-test:
     name: Windows Server Environment & IIS Config Test
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     needs: lint-and-validate
 
     steps:
