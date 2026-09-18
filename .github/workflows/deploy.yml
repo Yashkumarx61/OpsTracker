@@ -57,9 +57,13 @@ jobs:
 
   # JOB 3: Deploy to your Windows Server EC2 using Docker
   deploy:
-    name: Deploy to Windows Server
+    name: Deploy to Windows Server (IIS)
     needs: build-and-push
     runs-on: [self-hosted, Windows]
+    permissions:
+      contents: read
+      packages: read   # <-- Grants GITHUB_TOKEN read access to pull from GHCR
+
     steps:
       - name: Authenticate Docker to GHCR
         shell: powershell
