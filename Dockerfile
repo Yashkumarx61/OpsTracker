@@ -1,8 +1,9 @@
+# escape=`
 # Use official Windows Server Core image with Python pre-installed
 FROM python:3.11-windowsservercore-ltsc2022
 
-# Configure working directory
-WORKDIR C:\app
+# Configure working directory using forward slash for clean path parsing
+WORKDIR C:/app
 
 # Prevent Python from writing .pyc files & buffer stdout/stderr
 ENV PYTHONDONTWRITEBYTECODE=1
