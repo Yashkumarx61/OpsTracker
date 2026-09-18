@@ -274,16 +274,16 @@
             <!-- Admin Reply & Status Form -->
             <form method="POST" action="{{ url_for('reply_ticket', ticket_id=ticket.id) }}" style="margin-top: 16px; border-top: 1px solid var(--border-subtle); padding-top: 12px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div style="display: flex; gap: 12px; align-items: flex-start;">
-                    <textarea name="admin_reply" rows="2" placeholder="Type your response to the employee..." class="input textarea" style="flex:1">{{ ticket.admin_reply or '' }}</textarea>
-                    <div style="display: flex; flex-direction: column; gap: 8px; min-width: 140px;">
+                <div class="ticket-reply-row">
+                    <textarea name="admin_reply" rows="2" placeholder="Type your response to the employee..." class="input textarea ticket-reply-textarea">{{ ticket.admin_reply or '' }}</textarea>
+                    <div class="ticket-reply-actions">
                         <select name="status" class="select">
                             <option value="Open" {% if ticket.status == 'Open' %}selected{% endif %}>Open</option>
                             <option value="In-Progress" {% if ticket.status == 'In-Progress' %}selected{% endif %}>In-Progress</option>
                             <option value="Resolved" {% if ticket.status == 'Resolved' %}selected{% endif %}>Resolved</option>
                             <option value="Closed" {% if ticket.status == 'Closed' %}selected{% endif %}>Closed</option>
                         </select>
-                        <button type="submit" class="btn-primary btn-violet" style="padding: 8px;">Save Reply</button>
+                        <button type="submit" class="btn-primary btn-violet">Save Reply</button>
                     </div>
                 </div>
             </form>

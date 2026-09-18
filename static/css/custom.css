@@ -118,6 +118,7 @@
 html {
     scroll-behavior: smooth;
     height: 100%;
+    overflow-x: hidden;
 }
 
 body {
@@ -126,6 +127,8 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.35s ease, color 0.35s ease;
@@ -175,7 +178,7 @@ a {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 64px;
+    min-height: 64px;
     gap: 16px;
 }
 
@@ -192,6 +195,7 @@ a {
     align-items: center;
     justify-content: flex-end;
     gap: 12px;
+    flex-wrap: wrap;
     min-width: 0;
 }
 
@@ -299,12 +303,17 @@ a {
 .role-badge {
     display: none;
     align-items: center;
-    padding: 4px 12px;
+    justify-content: center;
+    height: 38px;
+    padding: 0 12px;
     border-radius: var(--radius-full);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.03em;
     text-transform: uppercase;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    margin: 0;
 }
 
 @media (min-width: 640px) {
@@ -331,40 +340,54 @@ a {
     color: var(--text-secondary);
     font-weight: 500;
     display: none;
+    align-items: center;
+    height: 38px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin: 0;
 }
 
 @media (min-width: 640px) {
-    .user-name { display: inline; }
+    .user-name { display: inline-flex; }
 }
 
 /* ── Employee ID Badge ── */
 .emp-id-badge {
     display: inline-flex;
     align-items: center;
-    padding: 2px 7px;
+    justify-content: center;
+    height: 38px;
+    padding: 0 10px;
     border-radius: var(--radius-sm);
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 700;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     letter-spacing: 0.04em;
     background: var(--bg-surface);
     color: var(--accent);
     border: 1px solid var(--border-default);
-    margin-left: 4px;
     flex-shrink: 0;
+    box-sizing: border-box;
+    margin: 0;
 }
 
 /* ── Employee Availability Status Selector ── */
 .user-status-wrapper {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    flex-shrink: 0;
+    margin: 0;
 }
 
 .status-dropdown-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 6px 12px;
+    height: 38px;
+    padding: 0 12px;
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
     font-weight: 600;
@@ -373,6 +396,9 @@ a {
     border: 1px solid var(--border-default);
     cursor: pointer;
     transition: all var(--transition);
+    box-sizing: border-box;
+    margin: 0;
+    flex-shrink: 0;
 }
 
 .status-dropdown-btn:hover {
@@ -405,6 +431,7 @@ a {
     border-radius: var(--radius-sm);
     box-shadow: var(--shadow-lg);
     padding: 6px;
+    z-index: 200;
     z-index: 100;
     display: flex;
     flex-direction: column;
@@ -526,7 +553,11 @@ a {
 /* ── Notification Center ── */
 .notif-wrapper {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    height: 38px;
+    flex-shrink: 0;
+    margin: 0;
 }
 
 .notif-btn {
@@ -729,8 +760,10 @@ a {
 .nav-chat-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 7px 12px;
+    height: 38px;
+    padding: 0 14px;
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
     font-weight: 600;
@@ -738,6 +771,9 @@ a {
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     transition: all var(--transition);
+    flex-shrink: 0;
+    box-sizing: border-box;
+    margin: 0;
 }
 
 .nav-chat-btn:hover {
@@ -978,8 +1014,10 @@ a {
 .btn-logout {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 7px 14px;
+    height: 38px;
+    padding: 0 14px;
     border-radius: var(--radius-sm);
     font-size: 0.8rem;
     font-weight: 600;
@@ -988,6 +1026,9 @@ a {
     border: 1px solid var(--border-default);
     transition: all var(--transition);
     white-space: nowrap;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    margin: 0;
 }
 
 .btn-logout:hover {
@@ -1271,18 +1312,21 @@ a {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
 }
 
 .input, .select, .textarea {
     display: block;
     width: 100%;
+    box-sizing: border-box;
     padding: 10px 14px;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
     background: var(--bg-input);
     color: var(--text-primary);
-    font-size: 0.85rem;
+    font-size: 16px; /* 16px minimum prevents automatic iOS zoom on focus */
     font-family: inherit;
+    min-height: 44px;
     transition: all var(--transition);
 }
 
@@ -1297,7 +1341,7 @@ a {
     background: var(--bg-card);
 }
 
-.textarea { resize: vertical; }
+.textarea { resize: vertical; min-height: 80px; }
 
 .select {
     appearance: none;
@@ -1310,10 +1354,12 @@ a {
 
 /* ── Labels ── */
 .label {
-    font-size: 0.8rem;
+    display: block;
+    width: 100%;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 
 /* ── Buttons ── */
@@ -1323,10 +1369,11 @@ a {
     justify-content: center;
     gap: 8px;
     width: 100%;
+    min-height: 44px;
     padding: 10px 20px;
     border: none;
     border-radius: var(--radius-sm);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
@@ -1334,6 +1381,7 @@ a {
     color: var(--text-inverse);
     background: var(--accent);
     box-shadow: 0 2px 8px var(--accent-shadow);
+    box-sizing: border-box;
 }
 
 .btn-primary:hover {
@@ -1356,11 +1404,13 @@ a {
 .btn-sm {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    padding: 6px 12px;
+    padding: 8px 14px;
+    min-height: 38px;
     border: none;
     border-radius: var(--radius-sm);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
@@ -1376,6 +1426,36 @@ a {
 .btn-ghost:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+}
+
+/* ── Support Ticket Layout Utilities ── */
+.ticket-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 768px) {
+    .ticket-grid {
+        grid-template-columns: 1fr 2fr;
+    }
+}
+
+.ticket-reply-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.ticket-reply-textarea {
+    flex: 1;
+}
+
+.ticket-reply-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 140px;
 }
 
 /* ── Inline Form (for add member etc.) ── */
@@ -1637,11 +1717,16 @@ a {
     min-height: 80vh;
     align-items: center;
     justify-content: center;
+    padding: 24px 16px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .auth-container {
     width: 100%;
     max-width: 420px;
+    margin: 0 auto;
+    box-sizing: border-box;
 }
 
 .auth-header {
@@ -1685,12 +1770,16 @@ a {
     border-radius: 16px;
     padding: 32px;
     box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .auth-form {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    width: 100%;
 }
 
 .auth-footer {
@@ -1734,17 +1823,38 @@ a {
 /* ============================================================
    RESPONSIVE ADJUSTMENTS
    ============================================================ */
+@media (max-width: 768px) {
+    .nav-inner { padding: 0 12px; }
+    .nav-row { height: auto; min-height: 56px; padding: 8px 0; gap: 10px; }
+    .nav-left { gap: 10px; }
+    .clock-date { display: none; }
+    .live-clock { padding: 4px 8px; }
+    .clock-time { font-size: 0.75rem; }
+    .notif-dropdown { right: 0; width: calc(100vw - 32px); max-width: 340px; }
+    .status-dropdown-menu { right: 0; max-width: calc(100vw - 32px); }
+    .main-content { padding: 16px 12px; }
+    .flash-container { padding: 12px 16px 0; }
+    .auth-wrapper { min-height: calc(100vh - 120px); padding: 20px 12px; }
+    .auth-card { padding: 24px 18px; border-radius: 14px; }
+    .ticket-reply-row { flex-direction: column; }
+    .ticket-reply-actions { width: 100%; min-width: 0; }
+    .chat-hub-card { height: auto; min-height: 0; }
+    .chat-layout { flex-direction: column; }
+    .chat-sidebar { width: 100%; max-height: 180px; border-right: none; border-bottom: 1px solid var(--border-default); }
+    .chat-main { height: 460px; }
+    .chat-bubble { max-width: 90%; }
+}
+
 @media (max-width: 639px) {
-    .nav-row { height: 56px; }
-    .live-clock { padding: 4px 10px; }
+    .nav-row { min-height: 56px; }
+    .live-clock { padding: 4px 8px; }
     .clock-time { font-size: 0.72rem; }
-    .clock-date { font-size: 0.58rem; }
     .logo-text { font-size: 1rem; }
-    .main-content { padding: 20px 16px; }
-    .page-title { font-size: 1.4rem; }
+    .main-content { padding: 16px 12px; }
+    .page-title { font-size: 1.35rem; }
     .stats-grid { gap: 10px; }
     .stat-card { padding: 14px; }
-    .stat-value { font-size: 1.4rem; }
+    .stat-value { font-size: 1.35rem; }
 }
 
 /* ============================================================
