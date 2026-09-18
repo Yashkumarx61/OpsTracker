@@ -5,93 +5,101 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: yashkumarx61/opstracker
+  APP_PORT: 5000
 
 jobs:
-  # JOB 1: Run Python tests & linting on GitHub-hosted runner (Fast & pre-configured)
-  test-and-lint:
-    name: Test and Lint
+  # ============================================================================
+  # JOB 1: Lint & Code Quality (Runs on Ubuntu for speed)
+  # ============================================================================
+  lint:
+    name: Lint & Code Quality
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install dependencies & lint
-        run: |
+      - run: |
           pip install flake8
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-  # JOB 2: Build & Push Docker image (with lowercased repository tag)
+  # ============================================================================
+  # JOB 2: Build & Push Native Windows Container
+  # ============================================================================
   build-and-push:
-    name: Build & Push Docker Image
-    needs: test-and-lint
-    runs-on: ubuntu-latest
+    name: Build & Push Windows Container
+    needs: lint
+    runs-on: windows-2022   # Required to build Windows container images
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set Lowercase Image Tag
-        run: |
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_TAG=ghcr.io/${REPO_LOWER}:latest" >> $GITHUB_ENV
-
-      - name: Log in to GHCR
+      - name: Log in to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and Push Docker Image
+        shell: powershell
         run: |
-          docker build -t ${{ env.IMAGE_TAG }} .
-          docker push ${{ env.IMAGE_TAG }}
+          $tag = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          docker build -t $tag .
+          docker push $tag
 
-  # JOB 3: Deploy to your Windows Server EC2 using Docker
+  # ============================================================================
+  # JOB 3: Deploy to Windows Server EC2 via Self-Hosted Runner
+  # ============================================================================
   deploy:
     name: Deploy to Windows Server (IIS)
     needs: build-and-push
     runs-on: [self-hosted, Windows]
     permissions:
       contents: read
-      packages: read   # <-- Grants GITHUB_TOKEN read access to pull from GHCR
-
+      packages: read
     steps:
-      - name: Authenticate Docker to GHCR
+      - name: Authenticate Docker on Server
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Pull and Run Container
+      - name: Pull and Restart Container
         shell: powershell
         run: |
-          $repo = "${{ github.repository }}".ToLower()
-          $IMAGE = "ghcr.io/${repo}:latest"
+          $image = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           
-          Write-Host "Pulling Docker image: $IMAGE"
-          docker pull $IMAGE
-          
-          # Remove previous container if running
+          # Pull fresh Windows container image
+          docker pull $image
+
+          # Stop and remove existing container if running
           $existing = docker ps -a -q -f "name=opstracker-app"
           if ($existing) {
-              Write-Host "Removing existing container opstracker-app..."
               docker rm -f opstracker-app
           }
 
-          # Run container on port 5000 (proxied by IIS)
-          Write-Host "Starting new container opstracker-app..."
+          # Run container bound to port 5000
           docker run -d `
             --name opstracker-app `
             --restart unless-stopped `
-            -p 5000:5000 `
-            $IMAGE
+            -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} `
+            $image
+
+      - name: Health Check Application Port
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 10
+          try {
+              $response = Invoke-WebRequest -Uri "http://localhost:${{ env.APP_PORT }}" -UseBasicParsing -TimeoutSec 10
+              Write-Host "Container healthy, response code: $($response.StatusCode)"
+          } catch {
+              Write-Warning "Health check returned: $_"
+          }
