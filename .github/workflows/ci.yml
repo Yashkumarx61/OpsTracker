@@ -123,8 +123,10 @@ jobs:
       - name: Authenticate Docker on Self-Hosted Windows Runner
         shell: powershell
         run: |
-          Write-Host "Authenticating to GHCR on self-hosted runner..."
-          "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          $pat = "${{ secrets.GHCR_PAT }}"
+          $username = "${{ github.actor }}".ToLower()
+          
+          $pat | docker login ghcr.io -u $username --password-stdin
           if ($LASTEXITCODE -ne 0) {
               Write-Error "GHCR authentication failed on self-hosted runner."
               exit 1
