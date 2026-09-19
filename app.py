@@ -118,19 +118,30 @@ def init_db():
 
     db = sqlite3.connect(Config.DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
+
+    # Migration: add columns if table exists but is missing new schema fields
+    try:
+        cur = db.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cur.fetchall()]
+        if columns:
+            if "current_status" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN current_status TEXT NOT NULL DEFAULT 'Available'")
+                db.commit()
+            if "employee_id" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN employee_id TEXT")
+                db.commit()
+            if "status" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'")
+                db.commit()
+    except Exception as e:
+        app.logger.warning(f"Migration check warning: {e}")
+
     with open(schema_path, "r", encoding="utf-8") as f:
         db.executescript(f.read())
 
-    # Migration: add current_status and employee_id columns if missing
-    cur = db.execute("PRAGMA table_info(users)")
-    columns = [row[1] for row in cur.fetchall()]
-    if "current_status" not in columns:
-        db.execute("ALTER TABLE users ADD COLUMN current_status TEXT NOT NULL DEFAULT 'Available'")
-        db.commit()
-
-    if "employee_id" not in columns:
-        db.execute("ALTER TABLE users ADD COLUMN employee_id TEXT")
-        db.commit()
+    # Ensure all users have status populated
+    db.execute("UPDATE users SET status = 'approved' WHERE status IS NULL OR status = ''")
+    db.commit()
 
     # Populate missing employee_ids
     users_without_empid = db.execute("SELECT id FROM users WHERE employee_id IS NULL OR employee_id = ''").fetchall()
@@ -155,7 +166,7 @@ with app.app_context():
 class User(UserMixin):
     """Lightweight user wrapper for Flask-Login."""
 
-    def __init__(self, id, full_name, email, password_hash, role, employee_id=None, current_status="Available", created_at=None):
+    def __init__(self, id, full_name, email, password_hash, role, employee_id=None, current_status="Available", status="approved", created_at=None):
         self.id = id
         self.employee_id = employee_id or f"EMP-{1000 + id}"
         self.full_name = full_name
@@ -163,11 +174,24 @@ class User(UserMixin):
         self.password_hash = password_hash
         self.role = role  # 'Admin' or 'Employee'
         self.current_status = current_status or "Available"
+        self.status = status or "approved"
         self.created_at = created_at
 
     @property
     def is_admin(self):
         return self.role == "Admin"
+
+    @property
+    def is_approved(self):
+        return self.status == "approved"
+
+    @property
+    def is_pending(self):
+        return self.status == "pending"
+
+    @property
+    def is_rejected(self):
+        return self.status == "rejected"
 
 
 @login_manager.user_loader
@@ -217,11 +241,19 @@ def login():
             return render_template("login.html")
 
         if row and check_password_hash(row["password_hash"], password):
-            user = User(**row)
-            login_user(user)
-            flash(f"Welcome back, {user.full_name}!", "success")
-            next_page = request.args.get("next")
-            return redirect(next_page or url_for("dashboard"))
+            user_status = row.get("status") or "approved"
+            if user_status == "pending":
+                flash("Your account is pending admin approval.", "warning")
+                return render_template("login.html")
+            elif user_status == "rejected":
+                flash("Your registration request was declined.", "error")
+                return render_template("login.html")
+            elif user_status == "approved":
+                user = User(**row)
+                login_user(user)
+                flash(f"Welcome back, {user.full_name}!", "success")
+                next_page = request.args.get("next")
+                return redirect(next_page or url_for("dashboard"))
 
         flash("Invalid email or password.", "error")
 
@@ -230,7 +262,7 @@ def login():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    """Render registration form and create a new Employee user."""
+    """Render registration form and submit new user for admin approval."""
     if current_user.is_authenticated:
         return redirect(url_for("dashboard"))
 
@@ -269,20 +301,31 @@ def register():
 
         employee_id_input = request.form.get("employee_id", "").strip().upper()
 
-        # Create user (default role: Employee)
+        # Create user with 'pending' status
         hashed = generate_password_hash(password)
         try:
             new_id = execute_db(
-                "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                (full_name, email, hashed, "Employee"),
+                "INSERT INTO users (full_name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
+                (full_name, email, hashed, "Employee", "pending"),
             )
             final_emp_id = employee_id_input or f"EMP-{1000 + new_id}"
             execute_db("UPDATE users SET employee_id = ? WHERE id = ?", (final_emp_id, new_id))
-        except Exception:
+
+            # Notify admin users
+            admins = query_db("SELECT id FROM users WHERE role = 'Admin'")
+            for a in admins:
+                create_notification(
+                    a["id"],
+                    "Pending Registration Request",
+                    f"New registration request from {full_name} ({email}).",
+                    link="/admin/dashboard"
+                )
+        except Exception as e:
+            app.logger.error(f"Failed to create pending account: {e}")
             flash("Could not create account. Please try again.", "error")
             return render_template("register.html")
 
-        flash("Account created successfully! Please log in.", "success")
+        flash("Your registration request has been submitted and is pending administrator approval. You will receive access once approved.", "info")
         return redirect(url_for("login"))
 
     return render_template("register.html")
@@ -311,12 +354,12 @@ def dashboard():
 
 
 # ============================================================
-# Routes — Admin Dashboard
+# Routes — Admin Dashboard & Approval Workflow
 # ============================================================
 @app.route("/admin/dashboard")
 @admin_required
 def admin_dashboard():
-    """Admin view: all teams, projects, tasks, users, and tickets."""
+    """Admin view: teams, projects, tasks, users, tickets, and pending approval requests."""
     teams = query_db("SELECT * FROM teams ORDER BY team_name")
     projects = query_db("""
         SELECT p.*, t.team_name
@@ -331,7 +374,8 @@ def admin_dashboard():
         LEFT JOIN users u ON tk.assigned_to = u.id
         ORDER BY tk.due_date ASC
     """)
-    users = query_db("SELECT id, employee_id, full_name, email, role, current_status FROM users ORDER BY full_name")
+    users = query_db("SELECT id, employee_id, full_name, email, role, current_status, status FROM users WHERE status = 'approved' OR status IS NULL ORDER BY full_name")
+    pending_users = query_db("SELECT id, employee_id, full_name, email, role, status, created_at FROM users WHERE status = 'pending' ORDER BY created_at DESC")
     tickets = query_db("""
         SELECT tk.*, u.full_name AS author_name, u.email AS author_email, u.employee_id AS author_emp_id,
                adm.full_name AS replier_name
@@ -342,8 +386,43 @@ def admin_dashboard():
     """)
     return render_template(
         "admin_dashboard.html",
-        teams=teams, projects=projects, tasks=tasks, users=users, tickets=tickets,
+        teams=teams, projects=projects, tasks=tasks, users=users,
+        pending_users=pending_users, tickets=tickets,
     )
+
+
+@app.route("/admin/users/<int:user_id>/approve", methods=["POST"])
+@admin_required
+def approve_user(user_id):
+    """Admin: Approve a pending user registration request."""
+    user = query_db("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    execute_db("UPDATE users SET status = 'approved' WHERE id = ?", (user_id,))
+    create_notification(
+        user_id,
+        "Registration Approved",
+        "Your account registration has been approved by an administrator! You may now log in to OpsTracker.",
+        link="/login"
+    )
+    flash(f"User registration for '{user['full_name']}' has been approved.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/users/<int:user_id>/reject", methods=["POST"])
+@admin_required
+def reject_user(user_id):
+    """Admin: Reject a pending user registration request."""
+    user = query_db("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    execute_db("UPDATE users SET status = 'rejected' WHERE id = ?", (user_id,))
+    flash(f"User registration request for '{user['full_name']}' was declined.", "info")
+    return redirect(url_for("admin_dashboard"))
 
 
 # ============================================================
