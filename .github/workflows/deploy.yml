@@ -7,8 +7,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # Primary registry image name (forced lowercase in steps)
   IMAGE_NAME: yashkumarx61/opstracker
   APP_PORT: 5000
+  CONTAINER_NAME: opstracker-app
 
 jobs:
   # ============================================================================
@@ -18,14 +20,26 @@ jobs:
     name: Lint & Code Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: |
+
+      - name: Install Dependencies & Linting Tools
+        run: |
+          python -m pip install --upgrade pip
           pip install flake8
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Flake8 Code Quality Checks
+        run: |
+          # Stop build if there are Python syntax errors or undefined symbols
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Warnings check (exit-zero for complexity warnings)
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   # ============================================================================
   # JOB 2: Build & Push Native Windows Container
@@ -33,12 +47,33 @@ jobs:
   build-and-push:
     name: Build & Push Windows Container
     needs: lint
-    runs-on: windows-2022   # Required to build Windows container images
+    runs-on: windows-2022   # Matches Windows Server LTSC 2022 host kernel
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag_sha: ${{ steps.prep.outputs.sha_tag }}
+      image_tag_latest: ${{ steps.prep.outputs.latest_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Compute Lowercase Image Tags
+        id: prep
+        shell: powershell
+        run: |
+          $repoLower = "${{ github.repository }}".ToLower()
+          $registry = "${{ env.REGISTRY }}"
+          $sha = "${{ github.sha }}"
+          
+          $shaTag = "${registry}/${repoLower}:${sha}"
+          $latestTag = "${registry}/${repoLower}:latest"
+
+          Write-Host "Computed SHA Tag: $shaTag"
+          Write-Host "Computed Latest Tag: $latestTag"
+
+          echo "sha_tag=$shaTag" >> $env:GITHUB_OUTPUT
+          echo "latest_tag=$latestTag" >> $env:GITHUB_OUTPUT
 
       - name: Log in to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
@@ -47,59 +82,201 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Docker Image
+      - name: Build Windows Container Image
         shell: powershell
         run: |
-          $tag = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          docker build -t $tag .
-          docker push $tag
+          $shaTag = "${{ steps.prep.outputs.sha_tag }}"
+          $latestTag = "${{ steps.prep.outputs.latest_tag }}"
+
+          Write-Host "Building Windows Docker image..."
+          docker build -t $shaTag -t $latestTag .
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Docker build failed."
+              exit 1
+          }
+
+      - name: Push Container Images to GHCR
+        shell: powershell
+        run: |
+          $shaTag = "${{ steps.prep.outputs.sha_tag }}"
+          $latestTag = "${{ steps.prep.outputs.latest_tag }}"
+
+          Write-Host "Pushing $shaTag..."
+          docker push $shaTag
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          Write-Host "Pushing $latestTag..."
+          docker push $latestTag
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
   # ============================================================================
   # JOB 3: Deploy to Windows Server EC2 via Self-Hosted Runner
   # ============================================================================
   deploy:
     name: Deploy to Windows Server (IIS)
-    needs: build-and-push
+    needs: [lint, build-and-push]
     runs-on: [self-hosted, Windows]
     permissions:
       contents: read
       packages: read
     steps:
-      - name: Authenticate Docker on Server
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-
-      - name: Pull and Restart Container
+      - name: Authenticate Docker on Self-Hosted Windows Runner
         shell: powershell
         run: |
-          $image = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          
-          # Pull fresh Windows container image
-          docker pull $image
+          Write-Host "Authenticating to GHCR on self-hosted runner..."
+          "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "GHCR authentication failed on self-hosted runner."
+              exit 1
+          }
 
-          # Stop and remove existing container if running
-          $existing = docker ps -a -q -f "name=opstracker-app"
+      - name: Diagnostic Port Collision Check
+        shell: powershell
+        run: |
+          $port = ${{ env.APP_PORT }}
+          Write-Host "Auditing host port $port for active process bindings..."
+          $conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Where-Object State -EQ 'Listen'
+          if ($conn) {
+              $pidVal = $conn.OwningProcess
+              $procName = (Get-Process -Id $pidVal -ErrorAction SilentlyContinue).ProcessName
+              Write-Warning "Port $port is bound by PID $pidVal ($procName)."
+          } else {
+              Write-Host "Port $port is available for container binding."
+          }
+
+      - name: Backup Existing Image & Pull Deployment Target
+        id: pull
+        shell: powershell
+        run: |
+          $shaTag = "${{ needs.build-and-push.outputs.image_tag_sha }}"
+          $containerName = "${{ env.CONTAINER_NAME }}"
+
+          # Tag current running container image as rollback backup if present
+          $existing = docker ps -a --filter "name=^/${containerName}$" --format "{{.ID}}"
           if ($existing) {
-              docker rm -f opstracker-app
+              $currentImg = docker inspect -f '{{.Config.Image}}' $containerName 2>$null
+              if ($currentImg) {
+                  Write-Host "Backing up currently active image ($currentImg) as opstracker-backup:latest..."
+                  docker tag $currentImg "opstracker-backup:latest" 2>$null
+              }
           }
 
-          # Run container bound to port 5000
-          docker run -d `
-            --name opstracker-app `
-            --restart unless-stopped `
-            -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} `
-            $image
+          Write-Host "Pulling container image: $shaTag"
+          docker pull $shaTag
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to pull image $shaTag from GHCR."
+              exit 1
+          }
 
-      - name: Health Check Application Port
+      - name: Idempotent Container Cleanup & Launch
         shell: powershell
         run: |
-          Start-Sleep -Seconds 10
-          try {
-              $response = Invoke-WebRequest -Uri "http://localhost:${{ env.APP_PORT }}" -UseBasicParsing -TimeoutSec 10
-              Write-Host "Container healthy, response code: $($response.StatusCode)"
-          } catch {
-              Write-Warning "Health check returned: $_"
+          $shaTag = "${{ needs.build-and-push.outputs.image_tag_sha }}"
+          $containerName = "${{ env.CONTAINER_NAME }}"
+          $port = ${{ env.APP_PORT }}
+
+          Write-Host "Stopping and removing existing container: $containerName ..."
+          $existing = docker ps -a --filter "name=^/${containerName}$" --format "{{.ID}}"
+          if ($existing) {
+              try {
+                  docker stop -t 10 $containerName 2>$null
+                  docker rm -f $containerName 2>$null
+                  Write-Host "Existing container removed cleanly."
+              } catch {
+                  Write-Warning "Notice during container removal: $_"
+              }
           }
+
+          Write-Host "Starting new Windows container ($containerName) bound to port $port..."
+          docker run -d `
+            --name $containerName `
+            --restart unless-stopped `
+            -p ${port}:${port} `
+            $shaTag
+
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "docker run failed."
+              exit 1
+          }
+
+      - name: Health Check via Dynamic Windows NAT IP
+        id: healthcheck
+        shell: powershell
+        run: |
+          $containerName = "${{ env.CONTAINER_NAME }}"
+          $port = ${{ env.APP_PORT }}
+
+          # Extract internal NAT IP to bypass Windows loopback/localhost isolation
+          $containerIp = docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $containerName
+          if (-not $containerIp) {
+              Write-Warning "Container NAT IP not found. Falling back to 127.0.0.1."
+              $containerIp = "127.0.0.1"
+          }
+
+          $targetUrl = "http://${containerIp}:${port}/health"
+          Write-Host "Testing container health at: $targetUrl"
+
+          $maxAttempts = 5
+          $attempt = 0
+          $healthy = $false
+
+          while ($attempt -lt $maxAttempts -and -not $healthy) {
+              $attempt++
+              Write-Host "[Attempt $attempt/$maxAttempts] GET $targetUrl ..."
+              try {
+                  $response = Invoke-WebRequest -Uri $targetUrl -UseBasicParsing -TimeoutSec 5
+                  if ($response.StatusCode -eq 200) {
+                      Write-Host "HEALTH CHECK PASSED! Status Code: $($response.StatusCode)"
+                      Write-Host "Response Body: $($response.Content)"
+                      $healthy = $true
+                      break
+                  }
+              } catch {
+                  Write-Host "Attempt $attempt probe failed: $_"
+              }
+
+              if (-not $healthy -and $attempt -lt $maxAttempts) {
+                  Start-Sleep -Seconds 5
+              }
+          }
+
+          if (-not $healthy) {
+              Write-Error "HEALTH CHECK FAILED after $maxAttempts attempts."
+              Write-Host "==================== DOCKER CONTAINER LOGS (LAST 100 LINES) ===================="
+              docker logs --tail 100 $containerName
+              Write-Host "================================================================================"
+              exit 1
+          }
+
+      - name: Automated Rollback on Failure
+        if: failure()
+        shell: powershell
+        run: |
+          $containerName = "${{ env.CONTAINER_NAME }}"
+          $port = ${{ env.APP_PORT }}
+          Write-Warning "Deployment or health check failed! Initiating rollback..."
+
+          # Stop and remove failed container
+          docker stop -t 5 $containerName 2>$null
+          docker rm -f $containerName 2>$null
+
+          # Restore backup image if available
+          $backupImg = docker images -q opstracker-backup:latest
+          if ($backupImg) {
+              Write-Host "Restoring previous stable container image (opstracker-backup:latest)..."
+              docker run -d `
+                --name $containerName `
+                --restart unless-stopped `
+                -p ${port}:${port} `
+                opstracker-backup:latest
+              Write-Host "Rollback successful. Previous container restored."
+          } else {
+              Write-Warning "No backup image (opstracker-backup:latest) available for rollback."
+          }
+
+      - name: Storage Maintenance (Image Prune)
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "Cleaning up dangling Docker images on EC2 host..."
+          docker image prune -f
