@@ -121,16 +121,11 @@ jobs:
       packages: read
     steps:
       - name: Authenticate Docker on Self-Hosted Windows Runner
-        shell: powershell
-        run: |
-          $pat = "${{ secrets.GHCR_PAT }}"
-          $username = "${{ github.actor }}".ToLower()
-          
-          $pat | docker login ghcr.io -u $username --password-stdin
-          if ($LASTEXITCODE -ne 0) {
-              Write-Error "GHCR authentication failed on self-hosted runner."
-              exit 1
-          }
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Diagnostic Port Collision Check
         shell: powershell
@@ -256,24 +251,36 @@ jobs:
         run: |
           $containerName = "${{ env.CONTAINER_NAME }}"
           $port = ${{ env.APP_PORT }}
+
           Write-Warning "Deployment or health check failed! Initiating rollback..."
 
-          # Stop and remove failed container
-          docker stop -t 5 $containerName 2>$null
-          docker rm -f $containerName 2>$null
+          $existing = docker ps -a `
+            --filter "name=^/${containerName}$" `
+            --format "{{.ID}}"
 
-          # Restore backup image if available
+          if ($existing) {
+              docker stop -t 5 $containerName 2>$null
+              docker rm -f $containerName 2>$null
+          } else {
+              Write-Host "No failed container exists to remove."
+          }
+
           $backupImg = docker images -q opstracker-backup:latest
           if ($backupImg) {
-              Write-Host "Restoring previous stable container image (opstracker-backup:latest)..."
               docker run -d `
                 --name $containerName `
                 --restart unless-stopped `
                 -p ${port}:${port} `
                 opstracker-backup:latest
+
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Rollback container failed to start."
+                  exit 1
+              }
+
               Write-Host "Rollback successful. Previous container restored."
           } else {
-              Write-Warning "No backup image (opstracker-backup:latest) available for rollback."
+              Write-Warning "No backup image available for rollback."
           }
 
       - name: Storage Maintenance (Image Prune)
