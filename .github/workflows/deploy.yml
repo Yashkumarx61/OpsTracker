@@ -75,6 +75,26 @@ jobs:
           echo "sha_tag=$shaTag" >> $env:GITHUB_OUTPUT
           echo "latest_tag=$latestTag" >> $env:GITHUB_OUTPUT
 
+      - name: Free disk space before Docker login
+        shell: powershell
+        run: |
+          Write-Host "Running disk cleanup..."
+          $paths = @(
+            "C:\Users\runneradmin\AppData\Local\Temp",
+            "C:\Windows\Temp",
+            "C:\ProgramData\Package Cache"
+          )
+
+          foreach ($p in $paths) {
+            if (Test-Path $p) {
+              Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          # Clean Docker cache if present
+          docker system prune -af --volumes 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "Docker cache pruned." }
+
       - name: Log in to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
@@ -120,6 +140,26 @@ jobs:
       contents: read
       packages: read
     steps:
+      - name: Free disk space before Docker login
+        shell: powershell
+        run: |
+          Write-Host "Running disk cleanup..."
+          $paths = @(
+            "C:\Users\runneradmin\AppData\Local\Temp",
+            "C:\Windows\Temp",
+            "C:\ProgramData\Package Cache"
+          )
+
+          foreach ($p in $paths) {
+            if (Test-Path $p) {
+              Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+          # Clean Docker cache if present
+          docker system prune -af --volumes 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "Docker cache pruned." }
+
       - name: Authenticate Docker on Self-Hosted Windows Runner
         uses: docker/login-action@v3
         with:
