@@ -75,25 +75,41 @@ jobs:
           echo "sha_tag=$shaTag" >> $env:GITHUB_OUTPUT
           echo "latest_tag=$latestTag" >> $env:GITHUB_OUTPUT
 
+      - name: Initialize Docker CLI configuration
+        shell: powershell
+        run: |
+          $dockerConfig = Join-Path $env:RUNNER_TEMP "docker-config"
+          New-Item -ItemType Directory -Path $dockerConfig -Force | Out-Null
+          
+          # Initialize clean ASCII JSON configuration
+          '{}' | Set-Content -Path (Join-Path $dockerConfig "config.json") -Encoding ascii
+          
+          # Set DOCKER_CONFIG in the GitHub runner environment
+          "DOCKER_CONFIG=$dockerConfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Using isolated Docker config: $dockerConfig"
+
       - name: Free disk space before Docker login
         shell: powershell
         run: |
-          Write-Host "Running disk cleanup..."
-          $paths = @(
-            "C:\Users\runneradmin\AppData\Local\Temp",
-            "C:\Windows\Temp",
-            "C:\ProgramData\Package Cache"
+          $ErrorActionPreference = "Continue"
+          Write-Host "Running pre-login disk cleanup..."
+
+          $cleanupPaths = @(
+            "C:\Windows\Temp\*",
+            "$env:TEMP\*"
           )
 
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
-            }
+          foreach ($path in $cleanupPaths) {
+            Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
           }
 
-          # Clean Docker cache if present
-          docker system prune -af --volumes 2>$null
-          if ($LASTEXITCODE -eq 0) { Write-Host "Docker cache pruned." }
+          docker system prune -af --volumes
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Docker prune finished with exit code $LASTEXITCODE; continuing pipeline."
+          } else {
+            Write-Host "Docker cache and dangling volumes pruned."
+          }
 
       - name: Log in to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
@@ -140,25 +156,41 @@ jobs:
       contents: read
       packages: read
     steps:
+      - name: Initialize Docker CLI configuration
+        shell: powershell
+        run: |
+          $dockerConfig = Join-Path $env:RUNNER_TEMP "docker-config"
+          New-Item -ItemType Directory -Path $dockerConfig -Force | Out-Null
+          
+          # Initialize clean ASCII JSON configuration
+          '{}' | Set-Content -Path (Join-Path $dockerConfig "config.json") -Encoding ascii
+          
+          # Set DOCKER_CONFIG in the GitHub runner environment
+          "DOCKER_CONFIG=$dockerConfig" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Using isolated Docker config: $dockerConfig"
+
       - name: Free disk space before Docker login
         shell: powershell
         run: |
-          Write-Host "Running disk cleanup..."
-          $paths = @(
-            "C:\Users\runneradmin\AppData\Local\Temp",
-            "C:\Windows\Temp",
-            "C:\ProgramData\Package Cache"
+          $ErrorActionPreference = "Continue"
+          Write-Host "Running pre-login disk cleanup..."
+
+          $cleanupPaths = @(
+            "C:\Windows\Temp\*",
+            "$env:TEMP\*"
           )
 
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue
-            }
+          foreach ($path in $cleanupPaths) {
+            Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
           }
 
-          # Clean Docker cache if present
-          docker system prune -af --volumes 2>$null
-          if ($LASTEXITCODE -eq 0) { Write-Host "Docker cache pruned." }
+          docker system prune -af --volumes
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Docker prune finished with exit code $LASTEXITCODE; continuing pipeline."
+          } else {
+            Write-Host "Docker cache and dangling volumes pruned."
+          }
 
       - name: Authenticate Docker on Self-Hosted Windows Runner
         uses: docker/login-action@v3
@@ -180,6 +212,19 @@ jobs:
           } else {
               Write-Host "Port $port is available for container binding."
           }
+
+      - name: Diagnose Docker NAT Port Reservations
+        shell: powershell
+        run: |
+          Write-Host "Docker containers publishing port 5000:"
+          docker ps -a --filter "publish=5000" --format "table {{.ID}}\t{{.Names}}\t{{.Ports}}"
+
+          Write-Host "Docker NAT network:"
+          docker network inspect nat
+
+          Write-Host "Host listeners:"
+          Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue |
+            Format-Table -AutoSize
 
       - name: Backup Existing Image & Pull Deployment Target
         id: pull
@@ -208,32 +253,67 @@ jobs:
       - name: Idempotent Container Cleanup & Launch
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
+
           $shaTag = "${{ needs.build-and-push.outputs.image_tag_sha }}"
           $containerName = "${{ env.CONTAINER_NAME }}"
-          $port = ${{ env.APP_PORT }}
+          $port = [int]"${{ env.APP_PORT }}"
 
-          Write-Host "Stopping and removing existing container: $containerName ..."
-          $existing = docker ps -a --filter "name=^/${containerName}$" --format "{{.ID}}"
-          if ($existing) {
-              try {
-                  docker stop -t 10 $containerName 2>$null
-                  docker rm -f $containerName 2>$null
-                  Write-Host "Existing container removed cleanly."
-              } catch {
-                  Write-Warning "Notice during container removal: $_"
-              }
+          Write-Host "Removing existing container named $containerName..."
+          $namedContainer = docker ps -aq --filter "name=^/${containerName}$"
+
+          if ($namedContainer) {
+              docker rm -f $containerName 2>$null
           }
 
-          Write-Host "Starting new Windows container ($containerName) bound to port $port..."
+          Write-Host "Finding all containers publishing host port $port..."
+          $portContainers = @(
+              docker ps -aq --filter "publish=$port"
+          ) | Where-Object { $_ -and $_.Trim() }
+
+          foreach ($id in $portContainers) {
+              $details = docker ps -a --filter "id=$id" `
+                  --format "{{.ID}} {{.Names}} {{.Ports}}"
+              Write-Warning "Removing container holding port ${port}: $details"
+              docker rm -f $id 2>$null
+          }
+
+          # Confirm Docker no longer reports the port as published.
+          $remaining = @(
+              docker ps -aq --filter "publish=$port"
+          ) | Where-Object { $_ -and $_.Trim() }
+
+          if ($remaining) {
+              throw "Docker still has a container publishing host port $port."
+          }
+
+          # Check for a non-Docker process using the port.
+          $listeners = Get-NetTCPConnection `
+              -LocalPort $port `
+              -State Listen `
+              -ErrorAction SilentlyContinue
+
+          if ($listeners) {
+              $owners = $listeners | ForEach-Object {
+                  $process = Get-Process -Id $_.OwningProcess `
+                      -ErrorAction SilentlyContinue
+
+                  "PID $($_.OwningProcess) ($($process.ProcessName))"
+              }
+
+              throw "Host port $port is already used by: $($owners -join ', ')"
+          }
+
+          Write-Host "Starting Windows container $containerName on port $port..."
           docker run -d `
             --name $containerName `
             --restart unless-stopped `
-            -p ${port}:${port} `
+            -p "${port}:${port}" `
             $shaTag
 
           if ($LASTEXITCODE -ne 0) {
-              Write-Error "docker run failed."
-              exit 1
+              docker ps -a
+              throw "docker run failed."
           }
 
       - name: Health Check via Dynamic Windows NAT IP
@@ -294,6 +374,14 @@ jobs:
 
           Write-Warning "Deployment or health check failed! Initiating rollback..."
 
+          $portContainers = @(
+              docker ps -aq --filter "publish=$port"
+          ) | Where-Object { $_ -and $_.Trim() }
+
+          foreach ($id in $portContainers) {
+              docker rm -f $id 2>$null
+          }
+
           $existing = docker ps -a `
             --filter "name=^/${containerName}$" `
             --format "{{.ID}}"
@@ -310,7 +398,7 @@ jobs:
               docker run -d `
                 --name $containerName `
                 --restart unless-stopped `
-                -p ${port}:${port} `
+                -p "${port}:${port}" `
                 opstracker-backup:latest
 
               if ($LASTEXITCODE -ne 0) {
