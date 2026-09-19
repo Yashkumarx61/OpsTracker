@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}My Profile — OpsTracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <span class="section-icon icon-violet" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed; padding: 8px; border-radius: 10px; display: inline-flex;">
+            <i data-lucide="user-cog" style="width:24px;height:24px;"></i>
+        </span>
+        <div>
+            <h1 class="page-title">My Professional Profile</h1>
+            <p class="page-subtitle">View and update your organizational profile, department, and contact information.</p>
+        </div>
+    </div>
+</div>
+
+<div style="max-width: 720px; margin: 0 auto;">
+    <div class="card" style="padding: 32px; border-radius: 16px;">
+        
+        <!-- User Header Chip -->
+        <div style="display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: var(--violet); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700;">
+                {{ current_user.full_name[:2]|upper }}
+            </div>
+            <div>
+                <h2 style="font-size: 1.3rem; font-weight: 700; margin: 0 0 4px; color: var(--text-primary);">{{ current_user.full_name }}</h2>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span class="badge badge-progress">{{ current_user.employee_id }}</span>
+                    <span class="badge role-badge {% if current_user.is_admin %}role-admin{% else %}role-employee{% endif %}">{{ current_user.role }}</span>
+                    <span class="badge" style="background: var(--bg-surface); color: var(--text-secondary); border: 1px solid var(--border-default);">
+                        <i data-lucide="building-2" style="width:12px;height:12px;margin-right:4px;"></i>
+                        {{ current_user.department or 'General' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('profile') }}" class="card-form" style="display: grid; gap: 20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Full Name -->
+            <div class="form-group" style="margin: 0;">
+                <label for="prof-fullname" class="label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">
+                    Full Name <span style="color:red;">*</span>
+                </label>
+                <input
+                    type="text"
+                    id="prof-fullname"
+                    name="full_name"
+                    required
+                    value="{{ current_user.full_name }}"
+                    class="input"
+                    placeholder="Enter your full name"
+                >
+            </div>
+
+            <!-- Email (Read-only) -->
+            <div class="form-group" style="margin: 0;">
+                <label for="prof-email" class="label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+                    Work Email (Managed by Admin)
+                </label>
+                <input
+                    type="email"
+                    id="prof-email"
+                    value="{{ current_user.email }}"
+                    disabled
+                    class="input"
+                    style="opacity: 0.7; cursor: not-allowed;"
+                >
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <!-- Department -->
+                <div class="form-group" style="margin: 0;">
+                    <label for="prof-dept" class="label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">
+                        Department
+                    </label>
+                    <select id="prof-dept" name="department" class="select">
+                        <option value="Engineering" {% if current_user.department == 'Engineering' %}selected{% endif %}>Engineering</option>
+                        <option value="Operations" {% if current_user.department == 'Operations' %}selected{% endif %}>Operations</option>
+                        <option value="Product" {% if current_user.department == 'Product' %}selected{% endif %}>Product</option>
+                        <option value="Support" {% if current_user.department == 'Support' %}selected{% endif %}>Support</option>
+                        <option value="Marketing" {% if current_user.department == 'Marketing' %}selected{% endif %}>Marketing</option>
+                        <option value="Executive Management" {% if current_user.department == 'Executive Management' %}selected{% endif %}>Executive Management</option>
+                        <option value="General" {% if current_user.department == 'General' or not current_user.department %}selected{% endif %}>General</option>
+                    </select>
+                </div>
+
+                <!-- Job Title -->
+                <div class="form-group" style="margin: 0;">
+                    <label for="prof-title" class="label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">
+                        Job Title / Designation
+                    </label>
+                    <input
+                        type="text"
+                        id="prof-title"
+                        name="job_title"
+                        value="{{ current_user.job_title or 'Employee' }}"
+                        class="input"
+                        placeholder="e.g. Senior Software Engineer"
+                    >
+                </div>
+            </div>
+
+            <!-- Phone Number -->
+            <div class="form-group" style="margin: 0;">
+                <label for="prof-phone" class="label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: block;">
+                    Phone Number
+                </label>
+                <input
+                    type="tel"
+                    id="prof-phone"
+                    name="phone"
+                    value="{{ current_user.phone or '' }}"
+                    class="input"
+                    placeholder="e.g. +1 (555) 019-2834"
+                >
+            </div>
+
+            <!-- Submit -->
+            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn-primary btn-violet" style="display: flex; align-items: center; gap: 8px; padding: 10px 24px;">
+                    <i data-lucide="save" style="width:16px;height:16px;"></i>
+                    Save Profile Details
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

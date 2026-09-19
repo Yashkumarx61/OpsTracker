@@ -119,25 +119,80 @@ def init_db():
     db = sqlite3.connect(Config.DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
 
-    # Migration: add columns if table exists but is missing new schema fields
+    # Execute schema.sql first to ensure all tables exist
+    with open(schema_path, "r", encoding="utf-8") as f:
+        db.executescript(f.read())
+
+    # Migration: add columns if missing and migrate legacy values
     try:
         cur = db.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in cur.fetchall()]
         if columns:
             if "current_status" not in columns:
                 db.execute("ALTER TABLE users ADD COLUMN current_status TEXT NOT NULL DEFAULT 'Available'")
-                db.commit()
             if "employee_id" not in columns:
                 db.execute("ALTER TABLE users ADD COLUMN employee_id TEXT")
-                db.commit()
             if "status" not in columns:
                 db.execute("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'")
+            if "department" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN department TEXT DEFAULT 'General'")
+            if "job_title" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN job_title TEXT DEFAULT 'Employee'")
+            if "phone" not in columns:
+                db.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''")
+            db.commit()
+
+        cur_t = db.execute("PRAGMA table_info(tasks)")
+        t_cols = [row[1] for row in cur_t.fetchall()]
+        if t_cols:
+            sql_row = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'").fetchone()
+            if sql_row and sql_row[0] and "('To-Do', 'In-Progress', 'Done')" in sql_row[0]:
+                db.execute("ALTER TABLE tasks RENAME TO tasks_old")
+                db.execute("""
+                    CREATE TABLE tasks (
+                        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title        TEXT NOT NULL,
+                        description  TEXT,
+                        status       TEXT NOT NULL DEFAULT 'Backlog' CHECK(status IN ('Backlog', 'In Progress', 'Under Review', 'Completed', 'Blocked')),
+                        priority     TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Critical / Blocker', 'Urgent')),
+                        category_tag TEXT NOT NULL DEFAULT 'Feature',
+                        due_date     TEXT,
+                        project_id   INTEGER NOT NULL,
+                        assigned_to  INTEGER,
+                        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                        FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+                    )
+                """)
+                db.execute("""
+                    INSERT INTO tasks (id, title, description, status, priority, category_tag, due_date, project_id, assigned_to, created_at)
+                    SELECT id, title,
+                        CASE WHEN instr(sql_old, 'description') > 0 THEN description ELSE NULL END,
+                        CASE status
+                            WHEN 'To-Do' THEN 'Backlog'
+                            WHEN 'In-Progress' THEN 'In Progress'
+                            WHEN 'Done' THEN 'Completed'
+                            ELSE 'Backlog'
+                        END,
+                        'Medium', 'Feature', due_date, project_id, assigned_to, created_at
+                    FROM (SELECT *, (SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks_old') as sql_old FROM tasks_old)
+                """)
+                db.execute("DROP TABLE tasks_old")
+                db.commit()
+            else:
+                if "description" not in t_cols:
+                    db.execute("ALTER TABLE tasks ADD COLUMN description TEXT")
+                if "priority" not in t_cols:
+                    db.execute("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium'")
+                if "category_tag" not in t_cols:
+                    db.execute("ALTER TABLE tasks ADD COLUMN category_tag TEXT NOT NULL DEFAULT 'Feature'")
+                db.commit()
+                db.execute("UPDATE tasks SET status = 'Backlog' WHERE status = 'To-Do'")
+                db.execute("UPDATE tasks SET status = 'Completed' WHERE status = 'Done'")
+                db.execute("UPDATE tasks SET status = 'In Progress' WHERE status = 'In-Progress'")
                 db.commit()
     except Exception as e:
         app.logger.warning(f"Migration check warning: {e}")
-
-    with open(schema_path, "r", encoding="utf-8") as f:
-        db.executescript(f.read())
 
     # Ensure all users have status populated
     db.execute("UPDATE users SET status = 'approved' WHERE status IS NULL OR status = ''")
@@ -166,20 +221,27 @@ with app.app_context():
 class User(UserMixin):
     """Lightweight user wrapper for Flask-Login."""
 
-    def __init__(self, id, full_name, email, password_hash, role, employee_id=None, current_status="Available", status="approved", created_at=None):
+    def __init__(self, id, full_name, email, password_hash, role, employee_id=None, current_status="Available", status="approved", department="General", job_title="Employee", phone="", created_at=None):
         self.id = id
         self.employee_id = employee_id or f"EMP-{1000 + id}"
         self.full_name = full_name
         self.email = email
         self.password_hash = password_hash
-        self.role = role  # 'Admin' or 'Employee'
+        self.role = role  # 'Admin', 'Project Lead', 'Employee'
         self.current_status = current_status or "Available"
         self.status = status or "approved"
+        self.department = department or "General"
+        self.job_title = job_title or "Employee"
+        self.phone = phone or ""
         self.created_at = created_at
 
     @property
     def is_admin(self):
         return self.role == "Admin"
+
+    @property
+    def is_lead(self):
+        return self.role in ("Admin", "Project Lead")
 
     @property
     def is_approved(self):
@@ -192,6 +254,10 @@ class User(UserMixin):
     @property
     def is_rejected(self):
         return self.status == "rejected"
+
+    @property
+    def is_terminated(self):
+        return self.status == "terminated"
 
 
 @login_manager.user_loader
@@ -247,6 +313,9 @@ def login():
                 return render_template("login.html")
             elif user_status == "rejected":
                 flash("Your registration request was declined.", "error")
+                return render_template("login.html")
+            elif user_status == "terminated":
+                flash("Your account has been terminated. Please contact HR.", "error")
                 return render_template("login.html")
             elif user_status == "approved":
                 user = User(**row)
@@ -354,12 +423,44 @@ def dashboard():
 
 
 # ============================================================
-# Routes — Admin Dashboard & Approval Workflow
+# Routes — User Profile (Self-Service)
+# ============================================================
+@app.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    """View and update logged-in user profile details."""
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        department = request.form.get("department", "").strip()
+        job_title = request.form.get("job_title", "").strip()
+        phone = request.form.get("phone", "").strip()
+
+        if not full_name:
+            flash("Full name is required.", "error")
+            return redirect(url_for("profile"))
+
+        execute_db(
+            "UPDATE users SET full_name = ?, department = ?, job_title = ?, phone = ? WHERE id = ?",
+            (full_name, department or "General", job_title or "Employee", phone, current_user.id)
+        )
+        current_user.full_name = full_name
+        current_user.department = department or "General"
+        current_user.job_title = job_title or "Employee"
+        current_user.phone = phone
+
+        flash("Profile details updated successfully.", "success")
+        return redirect(url_for("profile"))
+
+    return render_template("profile.html")
+
+
+# ============================================================
+# Routes — Admin Dashboard & Approval / Employee Directory
 # ============================================================
 @app.route("/admin/dashboard")
 @admin_required
 def admin_dashboard():
-    """Admin view: teams, projects, tasks, users, tickets, and pending approval requests."""
+    """Admin executive dashboard with metrics, workload, tasks, teams, projects, tickets, and user offboarding."""
     teams = query_db("SELECT * FROM teams ORDER BY team_name")
     projects = query_db("""
         SELECT p.*, t.team_name
@@ -368,14 +469,22 @@ def admin_dashboard():
         ORDER BY p.created_at DESC
     """)
     tasks = query_db("""
-        SELECT tk.*, p.title AS project_title, u.full_name AS assignee_name, u.employee_id AS assignee_emp_id, u.current_status AS assignee_status
+        SELECT tk.*, p.title AS project_title, u.full_name AS assignee_name, u.employee_id AS assignee_emp_id, u.current_status AS assignee_status, u.department AS assignee_dept
         FROM tasks tk
         JOIN projects p ON tk.project_id = p.id
         LEFT JOIN users u ON tk.assigned_to = u.id
-        ORDER BY tk.due_date ASC
+        ORDER BY tk.created_at DESC
     """)
-    users = query_db("SELECT id, employee_id, full_name, email, role, current_status, status FROM users WHERE status = 'approved' OR status IS NULL ORDER BY full_name")
-    pending_users = query_db("SELECT id, employee_id, full_name, email, role, status, created_at FROM users WHERE status = 'pending' ORDER BY created_at DESC")
+
+    # Active non-terminated approved users for task assignments
+    users = query_db("SELECT id, employee_id, full_name, email, role, current_status, status, department, job_title, phone FROM users WHERE status = 'approved' OR status IS NULL ORDER BY full_name")
+
+    # Pending registration users
+    pending_users = query_db("SELECT id, employee_id, full_name, email, role, status, created_at, department, job_title FROM users WHERE status = 'pending' ORDER BY created_at DESC")
+
+    # All employee directory (including active, pending, and terminated)
+    all_employees = query_db("SELECT id, employee_id, full_name, email, role, current_status, status, department, job_title, phone, created_at FROM users ORDER BY status ASC, full_name ASC")
+
     tickets = query_db("""
         SELECT tk.*, u.full_name AS author_name, u.email AS author_email, u.employee_id AS author_emp_id,
                adm.full_name AS replier_name
@@ -384,10 +493,59 @@ def admin_dashboard():
         LEFT JOIN users adm ON tk.replied_by = adm.id
         ORDER BY tk.created_at DESC
     """)
+
+    # Executive Metrics Computation
+    total_active_tasks = len([t for t in tasks if t["status"] != "Completed"])
+
+    import datetime
+    today_str = datetime.date.today().isoformat()
+    overdue_count = len([t for t in tasks if t["due_date"] and t["due_date"] < today_str and t["status"] != "Completed"])
+
+    seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    resolution_velocity = len([t for t in tasks if t["status"] == "Completed" and t.get("created_at", "") >= seven_days_ago])
+
+    bottleneck_alerts = len([t for t in tasks if t["status"] == "Blocked" or (t["due_date"] and t["due_date"] < today_str and t["status"] != "Completed")])
+
+    metrics = {
+        "active_tasks": total_active_tasks,
+        "overdue_count": overdue_count,
+        "velocity": resolution_velocity,
+        "bottlenecks": bottleneck_alerts
+    }
+
+    # Group tasks for 5-state Kanban Board
+    kanban_tasks = {
+        "Backlog": [],
+        "In Progress": [],
+        "Under Review": [],
+        "Completed": [],
+        "Blocked": []
+    }
+    for t in tasks:
+        st = t["status"]
+        if st == "To-Do": st = "Backlog"
+        elif st == "Done": st = "Completed"
+        elif st == "In-Progress": st = "In Progress"
+        kanban_tasks.get(st, kanban_tasks["Backlog"]).append(t)
+
+    # Workload Distribution per Employee
+    workload = []
+    for u in users:
+        emp_tasks = [t for t in tasks if t["assigned_to"] == u["id"] and t["status"] != "Completed"]
+        workload.append({
+            "user_id": u["id"],
+            "full_name": u["full_name"],
+            "employee_id": u["employee_id"],
+            "department": u["department"] or "General",
+            "active_count": len(emp_tasks)
+        })
+    workload.sort(key=lambda x: x["active_count"], reverse=True)
+
     return render_template(
         "admin_dashboard.html",
         teams=teams, projects=projects, tasks=tasks, users=users,
-        pending_users=pending_users, tickets=tickets,
+        pending_users=pending_users, all_employees=all_employees, tickets=tickets,
+        metrics=metrics, kanban_tasks=kanban_tasks, workload=workload,
     )
 
 
@@ -422,6 +580,38 @@ def reject_user(user_id):
 
     execute_db("UPDATE users SET status = 'rejected' WHERE id = ?", (user_id,))
     flash(f"User registration request for '{user['full_name']}' was declined.", "info")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/users/<int:user_id>/terminate", methods=["POST"])
+@admin_required
+def terminate_user(user_id):
+    """Admin: Terminate/offboard an employee account."""
+    if user_id == current_user.id:
+        flash("You cannot terminate your own admin account.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    user = query_db("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    execute_db("UPDATE users SET status = 'terminated' WHERE id = ?", (user_id,))
+    flash(f"Employee '{user['full_name']}' ({user['employee_id']}) has been terminated and offboarded.", "warning")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/users/<int:user_id>/reactivate", methods=["POST"])
+@admin_required
+def reactivate_user(user_id):
+    """Admin: Reactivate a terminated employee account."""
+    user = query_db("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    execute_db("UPDATE users SET status = 'approved' WHERE id = ?", (user_id,))
+    flash(f"Employee '{user['full_name']}' account has been reactivated.", "success")
     return redirect(url_for("admin_dashboard"))
 
 
@@ -504,17 +694,31 @@ def update_project_status(project_id):
 def create_task():
     """Create and assign a task within a project."""
     title = request.form.get("title", "").strip()
+    desc = request.form.get("description", "").strip()
     project_id = request.form.get("project_id")
     assigned_to = request.form.get("assigned_to") or None
+    priority = request.form.get("priority", "Medium")
+    category_tag = request.form.get("category_tag", "Feature")
     due_date = request.form.get("due_date") or None
 
     if not title or not project_id:
         flash("Task title and project are required.", "error")
         return redirect(url_for("admin_dashboard"))
 
+    valid_priorities = ("Low", "Medium", "High", "Critical / Blocker")
+    if priority not in valid_priorities: priority = "Medium"
+
+    valid_tags = ("Frontend", "Backend", "Ops", "Bug", "Feature", "Security")
+    if category_tag not in valid_tags: category_tag = "Feature"
+
+    task_id = execute_db(
+        "INSERT INTO tasks (title, description, status, priority, category_tag, project_id, assigned_to, due_date) VALUES (?, ?, 'Backlog', ?, ?, ?, ?, ?)",
+        (title, desc, priority, category_tag, project_id, assigned_to, due_date),
+    )
+
     execute_db(
-        "INSERT INTO tasks (title, project_id, assigned_to, due_date) VALUES (?, ?, ?, ?)",
-        (title, project_id, assigned_to, due_date),
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, 'Task Created', ?)",
+        (task_id, current_user.id, f"Created task '{title}' with priority '{priority}'")
     )
 
     if assigned_to:
@@ -535,7 +739,7 @@ def create_task():
 @app.route("/employee/dashboard")
 @login_required
 def employee_dashboard():
-    """Employee view: tasks assigned to the current user, grouped by status."""
+    """Employee view: assigned tasks grouped by standardized workflow states, team availability, and tickets."""
     tasks = query_db("""
         SELECT tk.*, p.title AS project_title
         FROM tasks tk
@@ -544,12 +748,22 @@ def employee_dashboard():
         ORDER BY tk.due_date ASC
     """, (current_user.id,))
 
-    # Group tasks by status for kanban-style display
-    grouped = {"To-Do": [], "In-Progress": [], "Done": []}
+    # Group tasks by 5 workflow states
+    grouped = {
+        "Backlog": [],
+        "In Progress": [],
+        "Under Review": [],
+        "Completed": [],
+        "Blocked": []
+    }
     for task in tasks:
-        grouped.get(task["status"], grouped["To-Do"]).append(task)
+        st = task["status"]
+        if st == "To-Do": st = "Backlog"
+        elif st == "Done": st = "Completed"
+        elif st == "In-Progress": st = "In Progress"
+        grouped.get(st, grouped["Backlog"]).append(task)
 
-    team_members = query_db("SELECT id, employee_id, full_name, email, role, current_status FROM users ORDER BY full_name")
+    team_members = query_db("SELECT id, employee_id, full_name, email, role, current_status, department, job_title FROM users WHERE status = 'approved' OR status IS NULL ORDER BY full_name")
 
     tickets = query_db("""
         SELECT tk.*, adm.full_name AS replier_name
@@ -561,55 +775,206 @@ def employee_dashboard():
 
     return render_template(
         "employee_dashboard.html",
-        grouped=grouped, team_members=team_members, tickets=tickets,
+        grouped=grouped, tasks=tasks, team_members=team_members, tickets=tickets,
     )
 
 
 @app.route("/employee/tasks/<int:task_id>/status", methods=["POST"])
 @login_required
 def update_task_status(task_id):
-    """Allow an employee to update the status of their own task."""
+    """Allow an employee or admin to update the status of a task."""
     new_status = request.form.get("status")
-    if new_status not in ("To-Do", "In-Progress", "Done"):
+    valid_statuses = ("Backlog", "In Progress", "Under Review", "Completed", "Blocked")
+    if new_status not in valid_statuses:
         flash("Invalid status.", "error")
         return redirect(url_for("employee_dashboard"))
 
-    # Verify the task is assigned to the current user
-    task = query_db(
-        "SELECT * FROM tasks WHERE id = ? AND assigned_to = ?",
-        (task_id, current_user.id), one=True,
-    )
-    if not task:
-        flash("Task not found or not assigned to you.", "error")
-        return redirect(url_for("employee_dashboard"))
-
-    execute_db("UPDATE tasks SET status = ? WHERE id = ?", (new_status, task_id))
-    flash(f'Task status updated to "{new_status}".', "success")
-    return redirect(url_for("employee_dashboard"))
-
-
-# ============================================================
-# Routes — API (JSON endpoints for async frontend)
-# ============================================================
-@app.route("/api/tasks/<int:task_id>/status", methods=["POST"])
-@login_required
-@csrf.exempt  # AJAX JSON requests; auth via @login_required
-def api_update_task_status(task_id):
-    """API: Update task status via drag-and-drop (returns JSON)."""
-    data = request.get_json(silent=True)
-    if not data or "status" not in data:
-        return jsonify({"error": "Missing status"}), 400
-
-    new_status = data["status"]
-    if new_status not in ("To-Do", "In-Progress", "Done"):
-        return jsonify({"error": "Invalid status"}), 400
-
-    # Employees can only move their own tasks; admins can move any
     if not current_user.is_admin:
         task = query_db(
             "SELECT * FROM tasks WHERE id = ? AND assigned_to = ?",
             (task_id, current_user.id), one=True,
         )
+        if not task:
+            flash("Task not found or not assigned to you.", "error")
+            return redirect(url_for("employee_dashboard"))
+    else:
+        task = query_db("SELECT * FROM tasks WHERE id = ?", (task_id,), one=True)
+        if not task:
+            flash("Task not found.", "error")
+            return redirect(url_for("admin_dashboard"))
+
+    old_status = task["status"]
+    execute_db("UPDATE tasks SET status = ? WHERE id = ?", (new_status, task_id))
+    execute_db(
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, 'Status Update', ?)",
+        (task_id, current_user.id, f"Changed status from '{old_status}' to '{new_status}'")
+    )
+    flash(f'Task status updated to "{new_status}".', "success")
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+# ============================================================
+# Routes — API (Subtasks, Comments, Audit Logs, Export)
+# ============================================================
+@app.route("/api/tasks/<int:task_id>", methods=["GET"])
+@login_required
+def api_get_task_details(task_id):
+    """API: Fetch complete task details, subtasks, comments, and audit log entries."""
+    task = query_db("""
+        SELECT tk.*, p.title AS project_title, u.full_name AS assignee_name, u.employee_id AS assignee_emp_id
+        FROM tasks tk
+        JOIN projects p ON tk.project_id = p.id
+        LEFT JOIN users u ON tk.assigned_to = u.id
+        WHERE tk.id = ?
+    """, (task_id,), one=True)
+
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    subtasks = query_db("SELECT * FROM subtasks WHERE task_id = ? ORDER BY id ASC", (task_id,))
+    comments = query_db("""
+        SELECT tc.*, u.full_name AS author_name, u.role AS author_role
+        FROM task_comments tc
+        JOIN users u ON tc.user_id = u.id
+        WHERE tc.task_id = ?
+        ORDER BY tc.created_at ASC
+    """, (task_id,))
+    audit_logs = query_db("""
+        SELECT al.*, u.full_name AS actor_name
+        FROM task_audit_logs al
+        JOIN users u ON al.user_id = u.id
+        WHERE al.task_id = ?
+        ORDER BY al.created_at DESC
+    """, (task_id,))
+
+    return jsonify({
+        "task": task,
+        "subtasks": subtasks,
+        "comments": comments,
+        "audit_logs": audit_logs
+    })
+
+
+@app.route("/api/tasks/<int:task_id>/subtasks", methods=["POST"])
+@login_required
+@csrf.exempt
+def api_add_subtask(task_id):
+    """API: Add a subtask checklist item."""
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip() if data else ""
+    if not title:
+        return jsonify({"error": "Subtask title is required"}), 400
+
+    subtask_id = execute_db(
+        "INSERT INTO subtasks (task_id, title) VALUES (?, ?)",
+        (task_id, title)
+    )
+    execute_db(
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, 'Added Subtask', ?)",
+        (task_id, current_user.id, f"Added subtask item '{title}'")
+    )
+    return jsonify({"ok": True, "subtask_id": subtask_id, "title": title})
+
+
+@app.route("/api/subtasks/<int:subtask_id>/toggle", methods=["POST"])
+@login_required
+@csrf.exempt
+def api_toggle_subtask(subtask_id):
+    """API: Toggle subtask completion status."""
+    subtask = query_db("SELECT * FROM subtasks WHERE id = ?", (subtask_id,), one=True)
+    if not subtask:
+        return jsonify({"error": "Subtask not found"}), 404
+
+    new_val = 0 if subtask["is_completed"] else 1
+    execute_db("UPDATE subtasks SET is_completed = ? WHERE id = ?", (new_val, subtask_id))
+    action_text = "Completed" if new_val else "Uncompleted"
+    execute_db(
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, ?, ?)",
+        (subtask["task_id"], current_user.id, f"{action_text} Subtask", f"{action_text} checklist item '{subtask['title']}'")
+    )
+    return jsonify({"ok": True, "is_completed": new_val})
+
+
+@app.route("/api/tasks/<int:task_id>/comments", methods=["POST"])
+@login_required
+@csrf.exempt
+def api_add_task_comment(task_id):
+    """API: Add a comment to a task."""
+    data = request.get_json(silent=True) or request.form
+    comment = data.get("comment", "").strip() if data else ""
+    if not comment:
+        return jsonify({"error": "Comment text cannot be empty"}), 400
+
+    comment_id = execute_db(
+        "INSERT INTO task_comments (task_id, user_id, comment) VALUES (?, ?, ?)",
+        (task_id, current_user.id, comment)
+    )
+    execute_db(
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, 'Posted Comment', ?)",
+        (task_id, current_user.id, f"Added a comment")
+    )
+    return jsonify({
+        "ok": True,
+        "comment_id": comment_id,
+        "author": current_user.full_name,
+        "comment": comment,
+        "created_at": "Just now"
+    })
+
+
+@app.route("/api/tasks/export", methods=["GET"])
+@login_required
+def export_tasks_csv():
+    """Export tasks to downloadable CSV file."""
+    import csv
+    import io
+    from flask import Response
+
+    tasks = query_db("""
+        SELECT tk.id, tk.title, tk.description, tk.status, tk.priority, tk.category_tag, tk.due_date,
+               p.title AS project_title, u.full_name AS assignee_name, u.employee_id AS assignee_emp_id, tk.created_at
+        FROM tasks tk
+        JOIN projects p ON tk.project_id = p.id
+        LEFT JOIN users u ON tk.assigned_to = u.id
+        ORDER BY tk.created_at DESC
+    """)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Task ID", "Title", "Project", "Assignee Name", "Assignee Emp ID", "Status", "Priority", "Category Tag", "Due Date", "Created At", "Description"])
+
+    for t in tasks:
+        writer.writerow([
+            t["id"], t["title"], t["project_title"], t["assignee_name"] or "Unassigned",
+            t["assignee_emp_id"] or "N/A", t["status"], t["priority"], t["category_tag"],
+            t["due_date"] or "No due date", t["created_at"], t["description"] or ""
+        ])
+
+    response = Response(output.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=opstracker_tasks_export.csv"
+    return response
+
+
+@app.route("/api/tasks/<int:task_id>/status", methods=["POST"])
+@login_required
+@csrf.exempt
+def api_update_task_status(task_id):
+    """API: Update task status via drag-and-drop or select (returns JSON)."""
+    data = request.get_json(silent=True) or request.form
+    if not data or "status" not in data:
+        return jsonify({"error": "Missing status"}), 400
+
+    new_status = data["status"]
+    if new_status == "To-Do": new_status = "Backlog"
+    elif new_status == "Done": new_status = "Completed"
+    elif new_status == "In-Progress": new_status = "In Progress"
+
+    valid_statuses = ("Backlog", "In Progress", "Under Review", "Completed", "Blocked")
+    if new_status not in valid_statuses:
+        return jsonify({"error": f"Invalid status: {new_status}"}), 400
+
+    if not current_user.is_admin:
+        task = query_db("SELECT * FROM tasks WHERE id = ? AND assigned_to = ?", (task_id, current_user.id), one=True)
         if not task:
             return jsonify({"error": "Task not found or not assigned to you"}), 403
     else:
@@ -619,6 +984,10 @@ def api_update_task_status(task_id):
 
     old_status = task["status"]
     execute_db("UPDATE tasks SET status = ? WHERE id = ?", (new_status, task_id))
+    execute_db(
+        "INSERT INTO task_audit_logs (task_id, user_id, action, details) VALUES (?, ?, 'Status Change', ?)",
+        (task_id, current_user.id, f"Changed status from '{old_status}' to '{new_status}'")
+    )
 
     return jsonify({
         "ok": True,

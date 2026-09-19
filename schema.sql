@@ -13,9 +13,12 @@ CREATE TABLE IF NOT EXISTS users (
     full_name     TEXT    NOT NULL,
     email         TEXT    NOT NULL UNIQUE,
     password_hash TEXT    NOT NULL,
-    role          TEXT    NOT NULL DEFAULT 'Employee' CHECK(role IN ('Admin', 'Employee')),
+    role          TEXT    NOT NULL DEFAULT 'Employee' CHECK(role IN ('Admin', 'Project Lead', 'Employee')),
     current_status TEXT   NOT NULL DEFAULT 'Available' CHECK(current_status IN ('Available', 'On Call', 'On Leave', 'Offline')),
-    status        TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+    status        TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'terminated')),
+    department    TEXT    DEFAULT 'General',
+    job_title     TEXT    DEFAULT 'Employee',
+    phone         TEXT    DEFAULT '',
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -62,13 +65,16 @@ CREATE INDEX IF NOT EXISTS idx_projects_team ON projects(team_id);
 -- 5. Tasks
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tasks (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    title       TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'To-Do' CHECK(status IN ('To-Do', 'In-Progress', 'Done')),
-    due_date    TEXT,
-    project_id  INTEGER NOT NULL,
-    assigned_to INTEGER,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    title        TEXT NOT NULL,
+    description  TEXT,
+    status       TEXT NOT NULL DEFAULT 'Backlog' CHECK(status IN ('Backlog', 'In Progress', 'Under Review', 'Completed', 'Blocked')),
+    priority     TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Critical / Blocker')),
+    category_tag TEXT NOT NULL DEFAULT 'Feature' CHECK(category_tag IN ('Frontend', 'Backend', 'Ops', 'Bug', 'Feature', 'Security')),
+    due_date     TEXT,
+    project_id   INTEGER NOT NULL,
+    assigned_to  INTEGER,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -77,7 +83,52 @@ CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to);
 
 -- -----------------------------------------------------------
--- 6. Tickets
+-- 6. Subtasks (Checklist Items)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS subtasks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id      INTEGER NOT NULL,
+    title        TEXT NOT NULL,
+    is_completed INTEGER DEFAULT 0,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
+
+-- -----------------------------------------------------------
+-- 7. Task Comments
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS task_comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    comment    TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id);
+
+-- -----------------------------------------------------------
+-- 8. Task Audit Logs (Activity History)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS task_audit_logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    action     TEXT NOT NULL,
+    details    TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_task ON task_audit_logs(task_id);
+
+-- -----------------------------------------------------------
+-- 9. Tickets
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tickets (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,7 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 
 -- -----------------------------------------------------------
--- 7. Notifications
+-- 10. Notifications
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +163,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- -----------------------------------------------------------
--- 8. Chat Messages (Project & Direct Employee Chat)
+-- 11. Chat Messages (Project & Direct Employee Chat)
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS chat_messages (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,11 +187,13 @@ CREATE INDEX IF NOT EXISTS idx_chat_direct ON chat_messages(sender_id, recipient
 -- Password: admin123
 -- Hash generated by: werkzeug.security.generate_password_hash("admin123")
 -- -----------------------------------------------------------
-INSERT OR IGNORE INTO users (full_name, email, password_hash, role, status)
+INSERT OR IGNORE INTO users (full_name, email, password_hash, role, status, department, job_title)
 VALUES (
     'System Admin',
     'admin@opstracker.local',
     'scrypt:32768:8:1$2Yp3UgsVEDTNulHi$90964c5ca198a7810a435c9b2be9884ce93401ca65adeca153543236bc186372b3c85d115e63a9d5d2d926612cee9c282be6b2eab2307484d252bfe42c55542e',
     'Admin',
-    'approved'
+    'approved',
+    'Executive Management',
+    'Lead Administrator'
 );

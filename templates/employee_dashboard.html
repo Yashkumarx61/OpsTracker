@@ -1,217 +1,191 @@
 {% extends "base.html" %}
-{% block title %}My Tasks — OpsTracker{% endblock %}
+{% block title %}My Operational Tasks — OpsTracker{% endblock %}
 
 {% block content %}
 
 <!-- Page Header -->
-<div class="page-header">
-    <div style="display:flex;align-items:center;gap:10px">
-        <h1 class="page-title">My Tasks</h1>
-        <span class="emp-id-badge" style="font-size:0.8rem;padding:4px 10px">{{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</span>
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+    <div>
+        <h1 class="page-title" style="display: flex; align-items: center; gap: 10px; font-size: 1.75rem; font-weight: 800;">
+            <i data-lucide="check-square" style="width: 28px; height: 28px; color: var(--accent);"></i>
+            My Operational Workstation
+        </h1>
+        <p class="page-subtitle">Track, update, and collaborate on your assigned operational tasks and support tickets.</p>
     </div>
-    <p class="page-subtitle">Drag tasks between columns to update status, or use the buttons below each card.</p>
-</div>
-
-<!-- ===== TASK STATS ===== -->
-{% set todo_count = grouped['To-Do']|length %}
-{% set prog_count = grouped['In-Progress']|length %}
-{% set done_count = grouped['Done']|length %}
-{% set total = todo_count + prog_count + done_count %}
-
-<div class="stats-grid">
-    <div class="stat-card">
-        <p class="stat-label">Total</p>
-        <p class="stat-value" id="stat-total">{{ total }}</p>
-    </div>
-    <div class="stat-card">
-        <p class="stat-label">To-Do</p>
-        <p class="stat-value stat-value-amber" id="stat-todo">{{ todo_count }}</p>
-    </div>
-    <div class="stat-card">
-        <p class="stat-label">In-Progress</p>
-        <p class="stat-value stat-value-sky" id="stat-progress">{{ prog_count }}</p>
-    </div>
-    <div class="stat-card">
-        <p class="stat-label">Done</p>
-        <p class="stat-value stat-value-emerald" id="stat-done">{{ done_count }}</p>
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="emp-id-badge" style="font-size: 0.85rem; padding: 6px 12px;">{{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</span>
+        <span class="role-badge role-employee">{{ current_user.role }}</span>
     </div>
 </div>
 
-<!-- ===== TEAM AVAILABILITY ===== -->
+<!-- ===== TEAM AVAILABILITY CHIP BAR ===== -->
 {% if team_members %}
-<div class="team-availability-card">
-    <div class="team-availability-header">
-        <h3 class="team-availability-title">
-            <svg class="team-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-            </svg>
-            Team Member Availability Status
-        </h3>
+<div class="card" style="margin-bottom: 28px; padding: 18px 22px;">
+    <div class="section-header" style="margin-bottom: 12px;">
+        <span class="section-icon icon-sky" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; padding: 6px; border-radius: 8px; display: inline-flex;">
+            <i data-lucide="users" style="width:18px;height:18px;"></i>
+        </span>
+        <h3 class="section-title" style="margin-left: 8px; font-size: 1.05rem; font-weight: 700;">Team Member Availability</h3>
     </div>
-    <div class="team-availability-list">
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
         {% for member in team_members %}
-        <div class="team-member-chip">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: var(--bg-hover); padding: 6px 12px; border-radius: 9999px; border: 1px solid var(--border-default); font-size: 0.82rem;">
             <span class="status-dot status-dot-{{ member.current_status|lower|replace(' ', '-') }}"></span>
-            <span class="member-name">{{ member.full_name }}</span>
-            <span class="emp-id-badge">{{ member.employee_id or ('EMP-' ~ member.id) }}</span>
-            <span class="member-status-text">({{ member.current_status }})</span>
+            <span style="font-weight: 600; color: var(--text-primary);">{{ member.full_name }}</span>
+            <span class="text-muted">({{ member.current_status }})</span>
         </div>
         {% endfor %}
     </div>
 </div>
 {% endif %}
 
-<!-- ===== KANBAN BOARD ===== -->
-<div class="grid-3-kanban">
-
-    <!-- ── TO-DO ── -->
-    <div>
-        <div class="section-header">
-            <span class="section-icon icon-amber">
-                <span class="kanban-dot dot-amber"></span>
-            </span>
-            <h2 class="section-title">To-Do</h2>
-            <span class="section-count" id="count-todo">{{ todo_count }}</span>
+<!-- ===== OPERATIONAL TASK BOARD & DATA TABLE ===== -->
+<div class="card" style="padding: 24px; margin-bottom: 40px;">
+    <!-- Controls Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--border-default); padding-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <h2 class="section-title" style="font-size: 1.2rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="kanban" style="width:20px;height:20px;color:var(--accent);"></i> Assigned Task Kanban
+            </h2>
+            <!-- View Toggle -->
+            <div class="view-toggle-group">
+                <button type="button" class="view-toggle-btn active" id="btn-emp-kanban" onclick="switchEmpTaskView('kanban')">
+                    <i data-lucide="columns" style="width:14px;height:14px;"></i> Kanban Board
+                </button>
+                <button type="button" class="view-toggle-btn" id="btn-emp-table" onclick="switchEmpTaskView('table')">
+                    <i data-lucide="table" style="width:14px;height:14px;"></i> Data Table
+                </button>
+            </div>
         </div>
-        <div class="card-list kanban-column" id="col-todo" data-status="To-Do">
-            {% for task in grouped['To-Do'] %}
-            <div class="kanban-card" data-task-id="{{ task.id }}">
-                <h3 class="card-title">{{ task.title }}</h3>
-                <p class="card-subtitle">{{ task.project_title }}</p>
 
-                {% if task.due_date %}
-                <div class="card-meta">
-                    <span class="card-meta-item">
-                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                        Due: {{ task.due_date }}
-                    </span>
-                </div>
-                {% endif %}
-
-                <!-- Status controls (fallback for non-drag) -->
-                <div class="status-controls">
-                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="status" value="In-Progress">
-                        <button type="submit" class="status-btn status-btn-sky">→ In-Progress</button>
-                    </form>
-                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="status" value="Done">
-                        <button type="submit" class="status-btn status-btn-emerald">✓ Done</button>
-                    </form>
-                </div>
+        <!-- Filters -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="position: relative; width: 200px;">
+                <i data-lucide="search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-tertiary);"></i>
+                <input type="text" id="emp-task-search" placeholder="Search my tasks..." class="input" style="padding-left: 32px; font-size: 0.82rem;" onkeyup="filterEmpTasks()">
             </div>
-            {% endfor %}
-            <!-- Empty placeholder (shown when column is empty) -->
-            <div class="kanban-empty kanban-drop-placeholder {% if grouped['To-Do'] %}hidden{% endif %}">
-                Drop tasks here
-            </div>
+            <select id="emp-priority-select" class="select" style="width: 130px; font-size: 0.82rem;" onchange="filterEmpTasks()">
+                <option value="ALL">All Priorities</option>
+                <option value="Urgent">Urgent</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+            </select>
         </div>
     </div>
 
-    <!-- ── IN-PROGRESS ── -->
-    <div>
-        <div class="section-header">
-            <span class="section-icon icon-sky">
-                <span class="kanban-dot dot-sky dot-pulse"></span>
-            </span>
-            <h2 class="section-title">In-Progress</h2>
-            <span class="section-count" id="count-progress">{{ prog_count }}</span>
-        </div>
-        <div class="card-list kanban-column" id="col-progress" data-status="In-Progress">
-            {% for task in grouped['In-Progress'] %}
-            <div class="kanban-card" data-task-id="{{ task.id }}">
-                <h3 class="card-title">{{ task.title }}</h3>
-                <p class="card-subtitle">{{ task.project_title }}</p>
+    <!-- ── KANBAN VIEW ── -->
+    <div id="emp-kanban-container" style="display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 12px;">
+        {% set states = [
+            ('Backlog', 'badge-backlog', 'archive'),
+            ('In Progress', 'badge-in-progress', 'clock'),
+            ('Under Review', 'badge-under-review', 'eye'),
+            ('Completed', 'badge-completed', 'check-circle'),
+            ('Blocked', 'badge-blocked', 'octagon')
+        ] %}
 
-                {% if task.due_date %}
-                <div class="card-meta">
-                    <span class="card-meta-item">
-                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+        {% for state_name, badge_cls, icon_name in states %}
+        <div style="background: var(--bg-hover); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; min-height: 440px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 2px 4px;">
+                <span class="badge-state {{ badge_cls }}">
+                    <i data-lucide="{{ icon_name }}" style="width:12px;height:12px;"></i> {{ state_name }}
+                </span>
+                <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-tertiary);">
+                    {{ grouped[state_name]|length if grouped and state_name in grouped else 0 }}
+                </span>
+            </div>
+
+            <div class="kanban-column" id="emp-col-{{ state_name|lower|replace(' ', '-') }}" data-status="{{ state_name }}" style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                {% for task in (grouped[state_name] if grouped and state_name in grouped else []) %}
+                <div class="card kanban-card emp-task-node"
+                     data-task-id="{{ task.id }}"
+                     data-title="{{ task.title }}"
+                     data-priority="{{ task.priority or 'Medium' }}"
+                     data-status="{{ task.status }}"
+                     style="padding: 14px; border-radius: 10px; border-left: 4px solid {% if task.priority == 'Urgent' %}var(--rose){% elif task.priority == 'High' %}var(--amber){% else %}var(--accent){% endif %};"
+                     onclick="openTaskModal({{ task.id }})">
+
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px; display: flex; justify-content: space-between;">
+                        <span>{{ task.category_tag or 'Operational' }}</span>
+                        <span style="color: {% if task.priority == 'Urgent' %}var(--rose){% elif task.priority == 'High' %}var(--amber){% else %}var(--text-tertiary){% endif %}; font-weight: 700;">{{ task.priority or 'Medium' }}</span>
+                    </div>
+
+                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin: 0 0 8px; line-height: 1.3;">
+                        {{ task.title }}
+                    </h4>
+
+                    <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
+                        <i data-lucide="folder" style="width:12px;height:12px;margin-right:4px;"></i> {{ task.project_title }}
+                    </div>
+
+                    {% if task.due_date %}
+                    <div style="font-size: 0.75rem; border-top: 1px solid var(--border-subtle); padding-top: 8px; color: var(--text-tertiary); font-weight: 600;">
                         Due: {{ task.due_date }}
-                    </span>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
-
-                <!-- Status controls -->
-                <div class="status-controls">
-                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="status" value="To-Do">
-                        <button type="submit" class="status-btn status-btn-amber">← To-Do</button>
-                    </form>
-                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="status" value="Done">
-                        <button type="submit" class="status-btn status-btn-emerald">✓ Done</button>
-                    </form>
-                </div>
-            </div>
-            {% endfor %}
-            <div class="kanban-empty kanban-drop-placeholder {% if grouped['In-Progress'] %}hidden{% endif %}">
-                Drop tasks here
+                {% endfor %}
             </div>
         </div>
+        {% endfor %}
     </div>
 
-    <!-- ── DONE ── -->
-    <div>
-        <div class="section-header">
-            <span class="section-icon icon-emerald">
-                <svg style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </span>
-            <h2 class="section-title">Done</h2>
-            <span class="section-count" id="count-done">{{ done_count }}</span>
-        </div>
-        <div class="card-list kanban-column" id="col-done" data-status="Done">
-            {% for task in grouped['Done'] %}
-            <div class="kanban-card kanban-card-done" data-task-id="{{ task.id }}">
-                <h3 class="card-title done-text">{{ task.title }}</h3>
-                <p class="card-subtitle">{{ task.project_title }}</p>
-
-                {% if task.due_date %}
-                <div class="card-meta">
-                    <span class="card-meta-item">
-                        <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                        Due: {{ task.due_date }}
-                    </span>
-                </div>
-                {% endif %}
-
-                <!-- Reopen control -->
-                <div class="status-controls">
-                    <form method="POST" action="{{ url_for('update_task_status', task_id=task.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="status" value="To-Do">
-                        <button type="submit" class="status-btn status-btn-ghost">↺ Reopen</button>
-                    </form>
-                </div>
-            </div>
-            {% endfor %}
-            <div class="kanban-empty kanban-drop-placeholder {% if grouped['Done'] %}hidden{% endif %}">
-                Drop tasks here
-            </div>
-        </div>
+    <!-- ── TABLE VIEW ── -->
+    <div id="emp-table-container" style="display: none; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border-default); color: var(--text-tertiary); font-weight: 600; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.05em;">
+                    <th style="padding: 10px 12px;">Task Title</th>
+                    <th style="padding: 10px 12px;">Project</th>
+                    <th style="padding: 10px 12px;">Category Tag</th>
+                    <th style="padding: 10px 12px;">Priority</th>
+                    <th style="padding: 10px 12px;">Workflow State</th>
+                    <th style="padding: 10px 12px;">Due Date</th>
+                    <th style="padding: 10px 12px; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr class="emp-task-node"
+                    data-task-id="{{ task.id }}"
+                    data-title="{{ task.title }}"
+                    data-priority="{{ task.priority or 'Medium' }}"
+                    data-status="{{ task.status }}"
+                    style="border-bottom: 1px solid var(--border-default);">
+                    <td style="padding: 12px; font-weight: 700; color: var(--text-primary);">{{ task.title }}</td>
+                    <td style="padding: 12px; color: var(--text-secondary);">{{ task.project_title }}</td>
+                    <td style="padding: 12px; color: var(--text-tertiary);">{{ task.category_tag or 'General' }}</td>
+                    <td style="padding: 12px; font-weight: 700; font-size: 0.78rem;">{{ task.priority or 'Medium' }}</td>
+                    <td style="padding: 12px;">
+                        <span class="badge-state badge-{{ task.status|lower|replace(' ', '-') }}">{{ task.status }}</span>
+                    </td>
+                    <td style="padding: 12px; color: var(--text-tertiary);">{{ task.due_date or 'No date' }}</td>
+                    <td style="padding: 12px; text-align: right;">
+                        <button type="button" class="btn-ghost" style="font-size: 0.8rem; font-weight: 600;" onclick="openTaskModal({{ task.id }})">
+                            <i data-lucide="sliders" style="width:14px;height:14px;"></i> Details
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-
 </div>
 
-<!-- ===== SUPPORT TICKETS SECTION ===== -->
-<div style="margin-top: 36px;">
-    <div class="section-header">
-        <span class="section-icon icon-rose">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-12h5.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125H7.5a2.25 2.25 0 01-2.25-2.25V6.108c0-1.135.845-2.098 1.976-2.192a48.424 48.424 0 011.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" /></svg>
+<!-- ===== SUPPORT TICKETS ===== -->
+<div style="margin-top: 36px; margin-bottom: 40px;">
+    <div class="section-header" style="margin-bottom: 16px;">
+        <span class="section-icon icon-rose" style="background: rgba(244, 63, 94, 0.12); color: #e11d48; padding: 6px; border-radius: 8px; display: inline-flex;">
+            <i data-lucide="life-buoy" style="width:20px;height:20px;"></i>
         </span>
-        <h2 class="section-title">Support Tickets</h2>
-        <span class="section-count">{{ tickets|length if tickets else 0 }}</span>
+        <h2 class="section-title" style="margin-left: 8px; font-size: 1.2rem; font-weight: 700;">Support & Helpdesk Tickets</h2>
     </div>
 
-    <div class="ticket-grid">
-        <!-- Raise Ticket Form -->
-        <div class="card-form">
-            <h3 class="card-title" style="margin-bottom: 12px;">Raise a Ticket to Admin</h3>
-            <form method="POST" action="{{ url_for('create_ticket') }}" class="form-group">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- Form -->
+        <div class="card" style="padding: 20px;">
+            <h3 class="card-title" style="margin-bottom: 12px; font-size: 1.05rem; font-weight: 700;">Raise a Ticket to Admin</h3>
+            <form method="POST" action="{{ url_for('create_ticket') }}" class="form-group" style="display: flex; flex-direction: column; gap: 12px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="text" name="title" required placeholder="Ticket Subject / Issue Title" class="input">
                 <select name="priority" class="select">
@@ -220,178 +194,311 @@
                     <option value="High">High Priority</option>
                     <option value="Urgent">Urgent Priority</option>
                 </select>
-                <textarea name="description" rows="3" required placeholder="Describe your issue or request in detail…" class="input textarea"></textarea>
-                <button type="submit" class="btn-primary btn-rose">Submit Ticket</button>
+                <textarea name="description" rows="3" required placeholder="Describe issue in detail..." class="input textarea"></textarea>
+                <button type="submit" class="btn-primary btn-rose" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <i data-lucide="send" style="width:16px;height:16px;"></i> Submit Ticket
+                </button>
             </form>
         </div>
 
-        <!-- My Raised Tickets List -->
-        <div class="card-list">
+        <!-- Ticket List -->
+        <div class="card-list" style="display: flex; flex-direction: column; gap: 12px;">
             {% if tickets %}
             {% for ticket in tickets %}
-            <div class="card">
-                <div class="card-top">
-                    <div class="card-top-left">
-                        <h3 class="card-title">#{{ ticket.id }}: {{ ticket.title }}</h3>
-                        <p class="card-subtitle">Raised on {{ ticket.created_at }}</p>
-                    </div>
-                    <div style="display:flex;gap:6px;align-items:center">
-                        <span class="badge badge-{{ ticket.priority|lower }}">
-                            {{ ticket.priority }}
-                        </span>
-                        <span class="badge {% if ticket.status == 'Resolved' %}badge-completed{% elif ticket.status == 'In-Progress' %}badge-progress{% elif ticket.status == 'Closed' %}badge-todo{% else %}badge-ongoing{% endif %}">
-                            {{ ticket.status }}
-                        </span>
-                    </div>
+            <div class="card" style="padding: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700;">#{{ ticket.id }}: {{ ticket.title }}</h4>
+                    <span class="badge-state badge-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
                 </div>
-
-                <p class="card-desc" style="margin-top: 8px;">{{ ticket.description }}</p>
-
+                <p style="margin: 8px 0; font-size: 0.85rem; color: var(--text-secondary);">{{ ticket.description }}</p>
                 {% if ticket.admin_reply %}
-                <div class="ticket-reply-box">
-                    <div class="ticket-reply-header">
-                        <span>Admin Response (by {{ ticket.replier_name or 'Admin' }})</span>
-                        <span>{{ ticket.replied_at or '' }}</span>
-                    </div>
-                    <div class="ticket-reply-content">
-                        {{ ticket.admin_reply }}
-                    </div>
+                <div style="background: var(--bg-hover); padding: 10px 12px; border-radius: 6px; font-size: 0.82rem; border-left: 3px solid var(--accent); margin-top: 8px;">
+                    <strong>Admin Reply:</strong> {{ ticket.admin_reply }}
                 </div>
                 {% endif %}
             </div>
             {% endfor %}
             {% else %}
-            <div class="card" style="text-align:center;padding:32px;color:var(--text-tertiary)">
-                <p>You haven't raised any support tickets yet.</p>
+            <div class="card" style="text-align: center; padding: 24px; color: var(--text-tertiary);">
+                No tickets raised yet.
             </div>
             {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Toast notification container -->
-<div id="kanban-toast" class="kanban-toast hidden"></div>
+<!-- ===== INTERACTIVE TASK DETAIL MODAL ===== -->
+<div class="modal-overlay" id="task-modal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <div>
+                <span class="badge-state" id="modal-category-badge" style="margin-bottom: 4px;">Category</span>
+                <h3 id="modal-task-title" style="margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--text-primary);">Task Title</h3>
+            </div>
+            <button type="button" class="btn-ghost" onclick="closeTaskModal()" style="font-size: 1.2rem; cursor: pointer;">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                <div>
+                    <h4 style="font-size: 0.82rem; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px;">Description</h4>
+                    <p id="modal-task-desc" style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap;">Loading description...</p>
+                </div>
+
+                <div style="background: var(--bg-hover); padding: 14px; border-radius: 10px; font-size: 0.82rem; display: flex; flex-direction: column; gap: 10px;">
+                    <div>
+                        <strong style="color: var(--text-tertiary); display: block;">Workflow State</strong>
+                        <select id="modal-status-select" class="select" style="margin-top: 4px; font-size: 0.82rem;" onchange="updateTaskStatusFromModal()">
+                            <option value="Backlog">Backlog</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Blocked">Blocked</option>
+                        </select>
+                    </div>
+                    <div><strong style="color: var(--text-tertiary);">Priority:</strong> <span id="modal-priority-text" style="font-weight: 700;">Medium</span></div>
+                    <div><strong style="color: var(--text-tertiary);">Project:</strong> <span id="modal-project-text">N/A</span></div>
+                </div>
+            </div>
+
+            <!-- Subtasks Checklist -->
+            <div style="border-top: 1px solid var(--border-default); padding-top: 16px;">
+                <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="check-square" style="width:16px;height:16px;"></i> Subtasks Checklist
+                </h4>
+                <div id="modal-subtask-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <input type="text" id="new-subtask-title" placeholder="Add a subtask..." class="input" style="font-size: 0.85rem;">
+                    <button type="button" class="btn-primary" style="padding: 6px 14px; font-size: 0.82rem;" onclick="addSubtask()">Add</button>
+                </div>
+            </div>
+
+            <!-- Comments -->
+            <div style="border-top: 1px solid var(--border-default); padding-top: 16px;">
+                <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="message-circle" style="width:16px;height:16px;"></i> Discussion & Comments
+                </h4>
+                <div id="modal-comments-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 180px; overflow-y: auto;"></div>
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <textarea id="new-comment-text" rows="1" placeholder="Write a comment..." class="input textarea" style="font-size: 0.85rem;"></textarea>
+                    <button type="button" class="btn-primary btn-violet" style="padding: 6px 14px; font-size: 0.82rem;" onclick="addComment()">Post</button>
+                </div>
+            </div>
+
+            <!-- Audit Log -->
+            <div style="border-top: 1px solid var(--border-default); padding-top: 16px;">
+                <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="history" style="width:16px;height:16px;"></i> Audit History Log
+                </h4>
+                <div id="modal-audit-list" style="font-size: 0.78rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-(function() {
-    'use strict';
+let currentActiveTaskId = null;
 
-    // ── Toast notification helper ──
-    const toast = document.getElementById('kanban-toast');
-    function showToast(message, type) {
-        toast.textContent = message;
-        toast.className = 'kanban-toast kanban-toast-' + type;
-        // Force reflow for re-animation
-        void toast.offsetWidth;
-        toast.classList.add('kanban-toast-show');
-        clearTimeout(toast._timer);
-        toast._timer = setTimeout(() => {
-            toast.classList.remove('kanban-toast-show');
-        }, 3000);
+function switchEmpTaskView(view) {
+    const kanban = document.getElementById('emp-kanban-container');
+    const table = document.getElementById('emp-table-container');
+    const btnK = document.getElementById('btn-emp-kanban');
+    const btnT = document.getElementById('btn-emp-table');
+
+    if (view === 'kanban') {
+        kanban.style.display = 'grid';
+        table.style.display = 'none';
+        btnK.classList.add('active');
+        btnT.classList.remove('active');
+    } else {
+        kanban.style.display = 'none';
+        table.style.display = 'block';
+        btnK.classList.remove('active');
+        btnT.classList.add('active');
     }
+}
 
-    // ── Update stat counters after drag ──
-    function updateStats() {
-        const todoCount = document.querySelectorAll('#col-todo > .kanban-card').length;
-        const progCount = document.querySelectorAll('#col-progress > .kanban-card').length;
-        const doneCount = document.querySelectorAll('#col-done > .kanban-card').length;
-        const total = todoCount + progCount + doneCount;
+function filterEmpTasks() {
+    const q = document.getElementById('emp-task-search').value.toLowerCase().trim();
+    const pSel = document.getElementById('emp-priority-select').value;
 
-        document.getElementById('stat-total').textContent = total;
-        document.getElementById('stat-todo').textContent = todoCount;
-        document.getElementById('stat-progress').textContent = progCount;
-        document.getElementById('stat-done').textContent = doneCount;
+    document.querySelectorAll('.emp-task-node').forEach(el => {
+        const title = el.dataset.title ? el.dataset.title.toLowerCase() : '';
+        const p = el.dataset.priority || '';
 
-        document.getElementById('count-todo').textContent = todoCount;
-        document.getElementById('count-progress').textContent = progCount;
-        document.getElementById('count-done').textContent = doneCount;
+        const mQ = !q || title.includes(q);
+        const mP = pSel === 'ALL' || p === pSel;
 
-        // Toggle empty placeholders
-        document.querySelectorAll('.kanban-column').forEach(col => {
-            const cards = col.querySelectorAll('.kanban-card');
-            const empty = col.querySelector('.kanban-drop-placeholder');
-            if (empty) {
-                empty.classList.toggle('hidden', cards.length > 0);
-            }
-        });
-    }
+        el.style.display = (mQ && mP) ? '' : 'none';
+    });
+}
 
-    // ── Update card visual style based on column ──
-    function updateCardStyle(card, status) {
-        if (status === 'Done') {
-            card.classList.add('kanban-card-done');
-            const title = card.querySelector('.card-title');
-            if (title) title.classList.add('done-text');
-        } else {
-            card.classList.remove('kanban-card-done');
-            const title = card.querySelector('.card-title');
-            if (title) title.classList.remove('done-text');
-        }
-    }
-
-    // ── Send status update to API ──
-    async function updateTaskStatus(taskId, newStatus, cardEl, fromCol) {
-        try {
-            const res = await fetch('/api/tasks/' + taskId + '/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
-            });
-            const data = await res.json();
-
-            if (!res.ok || !data.ok) {
-                // Revert: move card back to original column
-                fromCol.appendChild(cardEl);
-                showToast(data.error || 'Failed to update task', 'error');
-                updateStats();
-                return;
-            }
-
-            updateCardStyle(cardEl, newStatus);
-            showToast('Moved to ' + newStatus, 'success');
-            updateStats();
-        } catch (err) {
-            // Network error: revert
-            fromCol.appendChild(cardEl);
-            showToast('Network error — please retry', 'error');
-            updateStats();
-        }
-    }
-
-    // ── Initialize SortableJS on each kanban column ──
-    document.querySelectorAll('.kanban-column').forEach(col => {
-        Sortable.create(col, {
-            group: 'kanban',
-            animation: 200,
-            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+document.addEventListener('DOMContentLoaded', () => {
+    const cols = document.querySelectorAll('.kanban-column');
+    cols.forEach(col => {
+        new Sortable(col, {
+            group: 'emp-kanban-group',
+            animation: 150,
             ghostClass: 'kanban-ghost',
             chosenClass: 'kanban-chosen',
-            dragClass: 'kanban-drag',
-            draggable: '.kanban-card',
-            filter: '.kanban-drop-placeholder',
-            // Delay on mobile to distinguish scroll vs drag
-            delay: 50,
-            delayOnTouchOnly: true,
+            onEnd: async function(evt) {
+                const itemEl = evt.item;
+                const newCol = evt.to;
+                const taskId = itemEl.dataset.taskId;
+                const newStatus = newCol.dataset.status;
 
-            onEnd: function(evt) {
-                const card = evt.item;
-                const fromCol = evt.from;
-                const toCol = evt.to;
-                const newStatus = toCol.dataset.status;
-                const taskId = card.dataset.taskId;
-
-                if (fromCol === toCol) return; // No column change
-
-                updateTaskStatus(taskId, newStatus, card, fromCol);
-            },
+                try {
+                    const res = await fetch(`/api/tasks/${taskId}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok) {
+                        itemEl.dataset.status = newStatus;
+                    } else {
+                        alert('Status update failed');
+                        location.reload();
+                    }
+                } catch (e) {
+                    console.error('Drag error', e);
+                    location.reload();
+                }
+            }
         });
     });
+});
 
-    // Initial stats sync
-    updateStats();
-})();
+async function openTaskModal(taskId) {
+    currentActiveTaskId = taskId;
+    const modal = document.getElementById('task-modal');
+    modal.classList.add('active');
+
+    try {
+        const res = await fetch(`/api/tasks/${taskId}`);
+        const task = await res.json();
+        if (!res.ok) return;
+
+        document.getElementById('modal-task-title').textContent = task.title;
+        document.getElementById('modal-task-desc').textContent = task.description || 'No description provided.';
+        document.getElementById('modal-category-badge').textContent = task.category_tag || 'Operational';
+        document.getElementById('modal-status-select').value = task.status;
+        document.getElementById('modal-priority-text').textContent = task.priority || 'Medium';
+        document.getElementById('modal-project-text').textContent = task.project_title || 'N/A';
+
+        renderSubtasks(task.subtasks || []);
+        renderComments(task.comments || []);
+        renderAuditLogs(task.audit_logs || []);
+
+        window.refreshIcons();
+    } catch (e) {
+        console.error('Failed to open modal', e);
+    }
+}
+
+function closeTaskModal() {
+    document.getElementById('task-modal').classList.remove('active');
+    currentActiveTaskId = null;
+}
+
+function renderSubtasks(subtasks) {
+    const list = document.getElementById('modal-subtask-list');
+    if (!subtasks || subtasks.length === 0) {
+        list.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">No subtasks yet.</div>';
+        return;
+    }
+    list.innerHTML = subtasks.map(s => `
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.85rem;">
+            <input type="checkbox" ${s.is_completed ? 'checked' : ''} onchange="toggleSubtask(${s.id})">
+            <span style="${s.is_completed ? 'text-decoration:line-through;color:var(--text-tertiary);' : 'color:var(--text-primary);'}">${s.title}</span>
+        </div>
+    `).join('');
+}
+
+async function toggleSubtask(subtaskId) {
+    try {
+        await fetch(`/api/subtasks/${subtaskId}/toggle`, { method: 'POST' });
+        openTaskModal(currentActiveTaskId);
+    } catch (e) { console.error(e); }
+}
+
+async function addSubtask() {
+    const inp = document.getElementById('new-subtask-title');
+    const title = inp.value.trim();
+    if (!title || !currentActiveTaskId) return;
+
+    try {
+        await fetch(`/api/tasks/${currentActiveTaskId}/subtasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title })
+        });
+        inp.value = '';
+        openTaskModal(currentActiveTaskId);
+    } catch (e) { console.error(e); }
+}
+
+function renderComments(comments) {
+    const list = document.getElementById('modal-comments-list');
+    if (!comments || comments.length === 0) {
+        list.innerHTML = '<div class="text-muted" style="font-size:0.8rem;">No comments yet.</div>';
+        return;
+    }
+    list.innerHTML = comments.map(c => `
+        <div style="background:var(--bg-hover);padding:10px 12px;border-radius:8px;font-size:0.82rem;">
+            <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:4px;color:var(--text-primary);">
+                <span>${c.user_name}</span>
+                <span style="font-size:0.75rem;color:var(--text-tertiary);">${c.created_at}</span>
+            </div>
+            <div style="color:var(--text-secondary);">${c.comment_text}</div>
+        </div>
+    `).join('');
+}
+
+async function addComment() {
+    const inp = document.getElementById('new-comment-text');
+    const text = inp.value.trim();
+    if (!text || !currentActiveTaskId) return;
+
+    try {
+        await fetch(`/api/tasks/${currentActiveTaskId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment_text: text })
+        });
+        inp.value = '';
+        openTaskModal(currentActiveTaskId);
+    } catch (e) { console.error(e); }
+}
+
+function renderAuditLogs(logs) {
+    const list = document.getElementById('modal-audit-list');
+    if (!logs || logs.length === 0) {
+        list.innerHTML = '<div class="text-muted">No audit history.</div>';
+        return;
+    }
+    list.innerHTML = logs.map(l => `
+        <div style="padding-bottom:4px;border-bottom:1px dashed var(--border-default);">
+            <strong>${l.changed_by_name}</strong> changed <code>${l.field_changed}</code> from <em>"${l.old_value || 'None'}"</em> to <strong>"${l.new_value}"</strong> on ${l.changed_at}
+        </div>
+    `).join('');
+}
+
+async function updateTaskStatusFromModal() {
+    const status = document.getElementById('modal-status-select').value;
+    if (!currentActiveTaskId) return;
+
+    try {
+        await fetch(`/api/tasks/${currentActiveTaskId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status })
+        });
+        openTaskModal(currentActiveTaskId);
+    } catch (e) { console.error(e); }
+}
 </script>
 {% endblock %}
