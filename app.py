@@ -10,14 +10,16 @@ Modules:
   - Health-check endpoint for CI/CD monitoring
 """
 
+import csv
 import functools
+import io
 import os
 import sqlite3
 from datetime import datetime
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash, jsonify, g
+    url_for, flash, jsonify, g, Response
 )
 from flask_login import (
     LoginManager, UserMixin, login_user,
@@ -537,7 +539,8 @@ def admin_dashboard():
             "full_name": u["full_name"],
             "employee_id": u["employee_id"],
             "department": u["department"] or "General",
-            "active_count": len(emp_tasks)
+            "active_count": len(emp_tasks),
+            "task_count": len(emp_tasks)
         })
     workload.sort(key=lambda x: x["active_count"], reverse=True)
 
@@ -926,9 +929,6 @@ def api_add_task_comment(task_id):
 @login_required
 def export_tasks_csv():
     """Export tasks to downloadable CSV file."""
-    import csv
-    import io
-    from flask import Response
 
     tasks = query_db("""
         SELECT tk.id, tk.title, tk.description, tk.status, tk.priority, tk.category_tag, tk.due_date,

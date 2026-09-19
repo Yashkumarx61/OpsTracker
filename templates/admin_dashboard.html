@@ -78,10 +78,10 @@
         <div>
             <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">
                 <span>{{ w.full_name }}</span>
-                <span class="text-muted">{{ w.task_count }} active tasks</span>
+                <span class="text-muted">{{ w.active_count }} active tasks</span>
             </div>
             <div style="background: var(--bg-hover); height: 8px; border-radius: 4px; overflow: hidden;">
-                <div style="background: {% if w.task_count > 5 %}var(--rose){% elif w.task_count > 2 %}var(--accent){% else %}var(--emerald){% endif %}; width: {{ [ (w.task_count * 15), 100 ]|min }}%; height: 100%; border-radius: 4px; transition: width 0.3s ease;"></div>
+                <div style="background: {% if w.active_count > 5 %}var(--rose){% elif w.active_count > 2 %}var(--accent){% else %}var(--emerald){% endif %}; width: {{ [ (w.active_count * 15), 100 ]|min }}%; height: 100%; border-radius: 4px; transition: width 0.3s ease;"></div>
             </div>
         </div>
         {% endfor %}
