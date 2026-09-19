@@ -1710,7 +1710,400 @@ a {
 }
 
 /* ============================================================
-   AUTH PAGES (Login / Register)
+   AUTH PAGES — Two-Panel Login / Register
+   ============================================================ */
+
+/* ── Dark backdrop with radial glow accents ── */
+.login-page-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    box-sizing: border-box;
+    background: #09090f;
+    overflow-y: auto;
+    z-index: 0;
+}
+
+.login-page-glow {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+}
+.login-page-glow--pink {
+    width: 500px;
+    height: 500px;
+    top: -8%;
+    left: -6%;
+    background: radial-gradient(circle, rgba(220, 50, 120, 0.22) 0%, transparent 70%);
+}
+.login-page-glow--blue {
+    width: 500px;
+    height: 500px;
+    bottom: -10%;
+    right: -6%;
+    background: radial-gradient(circle, rgba(60, 100, 255, 0.18) 0%, transparent 70%);
+}
+
+/* ── Master card ── */
+.login-master-card {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    width: 100%;
+    max-width: 960px;
+    min-height: 580px;
+    background: #ffffff;
+    border-radius: 28px;
+    border: none;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ============================================================
+   LEFT — Visual Brand Panel
+   ============================================================ */
+.login-brand-panel {
+    position: relative;
+    background: #0c0d14;
+    border-radius: 0;
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 540px;
+}
+
+/* Background artwork */
+.login-brand-artwork {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    opacity: 0.85;
+}
+
+/* Gradient overlay for text readability */
+.login-brand-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+        to top,
+        rgba(8, 8, 16, 0.88) 0%,
+        rgba(8, 8, 16, 0.45) 40%,
+        rgba(8, 8, 16, 0.18) 70%,
+        rgba(8, 8, 16, 0.30) 100%
+    );
+    pointer-events: none;
+}
+
+/* Top — "A WISE QUOTE" pill + line */
+.login-brand-top {
+    position: absolute;
+    top: 28px;
+    left: 28px;
+    right: 28px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.login-brand-pill {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: rgba(255,255,255,0.75);
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.login-brand-line {
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.18);
+}
+
+/* Bottom — serif headline + quote */
+.login-brand-bottom {
+    position: relative;
+    z-index: 2;
+    padding: 0 32px 36px;
+}
+.login-brand-headline {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.8rem;
+    font-weight: 700;
+    font-style: italic;
+    line-height: 1.1;
+    color: #ffffff;
+    margin: 0 0 14px;
+    letter-spacing: -0.02em;
+}
+.login-brand-quote {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.50);
+    margin: 0;
+    max-width: 300px;
+}
+
+/* ============================================================
+   RIGHT — Form Panel
+   ============================================================ */
+.login-form-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 44px;
+    box-sizing: border-box;
+}
+
+/* Brand logo row */
+.login-form-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+.login-form-logo-icon {
+    width: 26px;
+    height: 26px;
+}
+.login-form-brand-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #111;
+    letter-spacing: -0.02em;
+}
+
+/* Header */
+.login-form-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+.login-form-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #111;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+}
+.login-form-subtitle {
+    font-size: 0.82rem;
+    color: #888;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Form */
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
+}
+
+/* Fields */
+.login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.login-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #333;
+}
+.login-input {
+    width: 100%;
+    height: 46px;
+    padding: 0 14px;
+    font-size: 0.88rem;
+    font-family: 'Inter', sans-serif;
+    color: #111;
+    background: #f9fafb;
+    border: 1px solid #f3f4f6;
+    border-radius: 10px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.login-input::placeholder {
+    color: #b0b3b8;
+}
+.login-input:focus {
+    border-color: #c7c9cf;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+}
+
+/* Password wrap with eye toggle */
+.login-input-wrap {
+    position: relative;
+}
+.login-input--password {
+    padding-right: 44px;
+}
+.login-eye-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.15s ease;
+}
+.login-eye-toggle:hover {
+    color: #555;
+}
+.login-eye-icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* Options row */
+.login-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: -4px;
+}
+.login-remember {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #555;
+    cursor: pointer;
+}
+.login-checkbox {
+    width: 15px;
+    height: 15px;
+    accent-color: #111;
+    cursor: pointer;
+}
+.login-forgot {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #111;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+.login-forgot:hover {
+    color: #555;
+}
+
+/* Submit button */
+.login-submit {
+    width: 100%;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    color: #ffffff;
+    background: #111111;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+.login-submit:hover {
+    background: #222;
+}
+.login-submit:active {
+    transform: scale(0.985);
+}
+
+/* Divider */
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.login-divider-line {
+    flex: 1;
+    height: 1px;
+    background: #eee;
+}
+.login-divider-text {
+    font-size: 0.75rem;
+    color: #aaa;
+    text-transform: lowercase;
+}
+
+/* Google button */
+.login-google-btn {
+    width: 100%;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    color: #333;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.login-google-btn:hover:not(:disabled) {
+    background: #fafafa;
+    border-color: #d1d5db;
+}
+.login-google-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.login-google-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* Footer */
+.login-form-footer {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 24px;
+}
+.login-form-footer a {
+    font-weight: 600;
+    color: #111;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+.login-form-footer a:hover {
+    color: #555;
+}
+
+/* ============================================================
+   AUTH SHARED (Register page compatibility)
    ============================================================ */
 .auth-wrapper {
     display: flex;
@@ -1721,19 +2114,16 @@ a {
     width: 100%;
     box-sizing: border-box;
 }
-
 .auth-container {
     width: 100%;
     max-width: 420px;
     margin: 0 auto;
     box-sizing: border-box;
 }
-
 .auth-header {
     text-align: center;
     margin-bottom: 32px;
 }
-
 .auth-icon-wrap {
     display: inline-flex;
     align-items: center;
@@ -1744,12 +2134,9 @@ a {
     color: var(--text-inverse);
     box-shadow: var(--shadow-lg);
 }
-
 .auth-icon-wrap svg { width: 28px; height: 28px; }
-
-.auth-icon-accent   { background: var(--accent); }
-.auth-icon-emerald  { background: var(--emerald); }
-
+.auth-icon-accent  { background: var(--accent); }
+.auth-icon-emerald { background: var(--emerald); }
 .auth-title {
     margin-top: 16px;
     font-size: 1.5rem;
@@ -1757,13 +2144,11 @@ a {
     letter-spacing: -0.03em;
     color: var(--text-primary);
 }
-
 .auth-subtitle {
     margin-top: 4px;
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
-
 .auth-card {
     background: var(--bg-card);
     border: 1px solid var(--border-default);
@@ -1774,29 +2159,60 @@ a {
     max-width: 100%;
     box-sizing: border-box;
 }
-
 .auth-form {
     display: flex;
     flex-direction: column;
     gap: 20px;
     width: 100%;
 }
-
 .auth-footer {
     margin-top: 24px;
     text-align: center;
     font-size: 0.85rem;
     color: var(--text-tertiary);
 }
-
 .auth-footer a {
     font-weight: 600;
     color: var(--accent);
     transition: color var(--transition);
 }
-
 .auth-footer a:hover {
     color: var(--accent-hover);
+}
+
+/* ============================================================
+   RESPONSIVE — Collapse to single-column
+   ============================================================ */
+@media (max-width: 860px) {
+    .login-page-backdrop {
+        padding: 16px;
+    }
+    .login-master-card {
+        grid-template-columns: 1fr;
+        max-width: 440px;
+        border-radius: 24px;
+    }
+    .login-brand-panel {
+        display: none;
+    }
+    .login-form-panel {
+        padding: 36px 28px;
+    }
+    .login-form-title {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-page-backdrop {
+        padding: 10px;
+    }
+    .login-master-card {
+        border-radius: 20px;
+    }
+    .login-form-panel {
+        padding: 28px 20px;
+    }
 }
 
 /* ── Kanban dot indicator ── */
