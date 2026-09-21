@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}OpsMail — Workspace{% endblock %}
+
+{% block content %}
+<div class="outlook-app">
+    <!-- OpsMail Top Ribbon Header Bar -->
+    <div class="outlook-ribbon">
+        <div class="outlook-ribbon-left">
+            <button type="button" class="outlook-btn-new" onclick="openMailComposer()">
+                <i data-lucide="edit-3" style="width:16px;height:16px;"></i> New Mail
+            </button>
+            <div class="outlook-ribbon-actions">
+                <button type="button" class="outlook-ribbon-btn" onclick="loadMailFolder('inbox')"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Sync</button>
+                <button type="button" class="outlook-ribbon-btn" onclick="markCurrentAsRead()"><i data-lucide="check-circle" style="width:14px;height:14px;"></i> Mark Read</button>
+                <button type="button" class="outlook-ribbon-btn" onclick="deleteCurrentMail()"><i data-lucide="trash-2" style="width:14px;height:14px;"></i> Delete</button>
+                <button type="button" class="outlook-ribbon-btn" onclick="archiveCurrentMail()"><i data-lucide="archive" style="width:14px;height:14px;"></i> Archive</button>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div class="outlook-search-box">
+                <i data-lucide="search" style="width:16px;height:16px; opacity:0.7;"></i>
+                <input type="text" id="outlook-search-input" placeholder="Search OpsMail messages..." onkeyup="filterOutlookMails(this.value)">
+            </div>
+            <span style="font-size:0.78rem; font-weight:700; background:rgba(255,255,255,0.2); padding:3px 10px; border-radius:12px;">OpsMail v2.4</span>
+        </div>
+    </div>
+
+    <!-- Outlook 3-Pane Body -->
+    <div class="outlook-body">
+        <!-- 1. Left Folders Pane -->
+        <aside class="outlook-folders">
+            <div class="outlook-folder-group">Mailboxes</div>
+            <div class="outlook-folder-item active" id="folder-inbox" onclick="switchFolder('inbox', this)">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="inbox" style="width:16px;height:16px; color:#0f62fe;"></i>
+                    <span>Inbox</span>
+                </div>
+                <span class="badge" id="unread-count-badge">2</span>
+            </div>
+            <div class="outlook-folder-item" id="folder-sent" onclick="switchFolder('sent', this)">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="send" style="width:16px;height:16px; color:var(--emerald);"></i>
+                    <span>Sent Items</span>
+                </div>
+            </div>
+            <div class="outlook-folder-item" id="folder-drafts" onclick="switchFolder('drafts', this)">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="file-text" style="width:16px;height:16px; color:var(--amber);"></i>
+                    <span>Drafts</span>
+                </div>
+            </div>
+            <div class="outlook-folder-item" id="folder-archive" onclick="switchFolder('archive', this)">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="archive" style="width:16px;height:16px; color:var(--violet);"></i>
+                    <span>Archive</span>
+                </div>
+            </div>
+            <div class="outlook-folder-item" id="folder-trash" onclick="switchFolder('trash', this)">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="trash-2" style="width:16px;height:16px; color:var(--rose);"></i>
+                    <span>Deleted Items</span>
+                </div>
+            </div>
+
+            <div class="outlook-folder-group" style="margin-top:16px;">Quick Views</div>
+            <div class="outlook-folder-item" onclick="filterByFlag('starred')">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="star" style="width:16px;height:16px; color:#f59e0b;"></i>
+                    <span>Starred</span>
+                </div>
+            </div>
+            <div class="outlook-folder-item" onclick="filterByFlag('tasks')">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="check-square" style="width:16px;height:16px; color:#10b981;"></i>
+                    <span>Assigned Tasks</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 2. Middle Message List Pane -->
+        <section class="outlook-list" id="outlook-mail-list">
+            <div class="outlook-list-header">
+                <span id="current-folder-label">Inbox</span>
+                <span style="font-size:0.75rem; color:var(--text-tertiary);" id="mail-count-label">Loading...</span>
+            </div>
+
+            <div id="mail-items-container">
+                <div class="outlook-mail-card unread active" onclick="selectMail(1, 'Security Bulletin: Production Token Rotation Required', 'System Admin', 'admin@opstracker.local', 'Team: Quarterly credential rotation audit is now due across all staging & production clusters.', '11:00 AM')">
+                    <div class="outlook-card-top">
+                        <div class="outlook-sender-avatar">SA</div>
+                        <div class="outlook-sender-name">System Admin</div>
+                        <div class="outlook-mail-time">11:00 AM</div>
+                    </div>
+                    <div class="outlook-mail-subject">Security Bulletin: Production Token Rotation Required</div>
+                    <div class="outlook-mail-snippet">Team: Quarterly credential rotation audit is now due across all staging & production clusters.</div>
+                </div>
+
+                <div class="outlook-mail-card" onclick="selectMail(2, 'Sprint Release v2.4 Deployment Status', 'Dinesh Singh', 'dinesh@opstracker.local', 'All unit & automated end-to-end WebRTC calling tests passed in staging environment.', 'Yesterday')">
+                    <div class="outlook-card-top">
+                        <div class="outlook-sender-avatar" style="background:var(--sky);">DS</div>
+                        <div class="outlook-sender-name">Dinesh Singh</div>
+                        <div class="outlook-mail-time">Yesterday</div>
+                    </div>
+                    <div class="outlook-mail-subject">Sprint Release v2.4 Deployment Status</div>
+                    <div class="outlook-mail-snippet">All unit & automated end-to-end WebRTC calling tests passed in staging environment.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Right Message Reader Pane -->
+        <main class="outlook-reader" id="outlook-reader-pane">
+            <div class="outlook-reader-header">
+                <div class="outlook-subject-title" id="reader-subject">Security Bulletin: Production Token Rotation Required</div>
+
+                <div class="outlook-meta-bar">
+                    <div class="outlook-sender-info">
+                        <div class="outlook-reader-avatar" id="reader-avatar">SA</div>
+                        <div>
+                            <div style="font-weight:700; color:var(--text-primary);" id="reader-sender">System Admin</div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary);" id="reader-email">admin@opstracker.local</div>
+                        </div>
+                    </div>
+
+                    <!-- Reader Action Toolbar -->
+                    <div class="outlook-action-toolbar">
+                        <button type="button" class="outlook-tool-btn" onclick="replyMail()"><i data-lucide="reply" style="width:14px;height:14px;"></i> Reply</button>
+                        <button type="button" class="outlook-tool-btn" onclick="forwardMail()"><i data-lucide="forward" style="width:14px;height:14px;"></i> Forward</button>
+                        <button type="button" class="outlook-tool-btn" style="background:#0f62fe; color:#ffffff; border:none;" onclick="assignTaskFromEmail()"><i data-lucide="check-square" style="width:14px;height:14px;"></i> Assign Task</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Body Renderer -->
+            <div class="outlook-reader-body" id="reader-body">
+                <p>Hello Team,</p>
+                <p>As part of our standard quarterly compliance audit, all production environment credentials, API keys, and service account tokens must be rotated before midnight UTC.</p>
+                <p>Please review the automated audit logs in the OpsTracker Security dashboard once updated.</p>
+                <br>
+                <div style="padding:12px; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:8px; display:inline-flex; align-items:center; gap:12px;">
+                    <i data-lucide="paperclip" style="color:var(--accent);"></i>
+                    <span style="font-size:0.85rem; font-weight:600;">security_audit_checklist_v2.4.pdf</span>
+                    <span style="font-size:0.75rem; color:var(--text-tertiary);">(240 KB)</span>
+                </div>
+                <br><br>
+                <p>Regards,<br><strong>Lead DevOps & Systems Administrator</strong></p>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Rich Outlook Compose Email Modal -->
+<dialog id="modal-mail-composer" class="custom-modal" style="max-width:680px;">
+    <div class="modal-card">
+        <div class="modal-header" style="background:#0f62fe; color:#ffffff; padding:16px 20px;">
+            <h3 style="margin:0; display:flex; align-items:center; gap:8px;"><i data-lucide="mail"></i> New OpsMail Message</h3>
+            <button type="button" class="modal-close-btn" style="color:#ffffff;" onclick="document.getElementById('modal-mail-composer').close()">&times;</button>
+        </div>
+        <form onsubmit="sendOpsMail(event)" style="padding:20px;">
+            <div class="form-group">
+                <label class="label">Recipients (To)</label>
+                <select id="composer-recipients" class="form-input" required>
+                    <option value="">-- Select Recipient --</option>
+                    {% for u in users %}
+                    <option value="{{ u.email }}">{{ u.full_name }} ({{ u.email }}) — {{ u.department or 'General' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="label">Subject Line</label>
+                <input type="text" id="composer-subject" class="form-input" placeholder="Subject..." required>
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="label">Message Body</label>
+                <textarea id="composer-body" class="form-input" rows="7" placeholder="Write your email body..." required></textarea>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+                <button type="button" class="btn-ghost" onclick="document.getElementById('modal-mail-composer').close()">Discard</button>
+                <button type="submit" class="btn-primary" style="background:#0f62fe;"><i data-lucide="send" style="width:14px;height:14px;"></i> Send Message</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentSelectedMailId = 1;
+
+function selectMail(id, subject, sender, email, snippet, time) {
+    currentSelectedMailId = id;
+    document.getElementById('reader-subject').textContent = subject;
+    document.getElementById('reader-sender').textContent = sender;
+    document.getElementById('reader-email').textContent = email || 'user@opstracker.local';
+    document.getElementById('reader-body').innerHTML = `<p>${snippet}</p><br><p>Best regards,<br><strong>${sender}</strong></p>`;
+    document.getElementById('reader-avatar').textContent = sender.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+
+    document.querySelectorAll('.outlook-mail-card').forEach(el => el.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    event.currentTarget.classList.remove('unread');
+}
+
+function openMailComposer() {
+    document.getElementById('modal-mail-composer').showModal();
+}
+
+async function switchFolder(folder, el) {
+    document.querySelectorAll('.outlook-folder-item').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    document.getElementById('current-folder-label').textContent = folder.toUpperCase();
+
+    try {
+        const res = await fetch(`/api/mail?folder=${folder}`);
+        const data = await res.json();
+        const container = document.getElementById('mail-items-container');
+        document.getElementById('mail-count-label').textContent = `${data.mails ? data.mails.length : 0} items`;
+
+        if (data.mails && data.mails.length > 0) {
+            container.innerHTML = data.mails.map((m, idx) => `
+                <div class="outlook-mail-card ${idx===0?'active':''} ${m.is_read===0?'unread':''}" onclick="selectMail(${m.id}, '${m.subject.replace(/'/g, "\\'")}', '${(m.sender_name||'Staff').replace(/'/g, "\\'")}', '${m.sender_email||''}', '${m.body_html.replace(/'/g, "\\'")}', '${m.created_at||''}')">
+                    <div class="outlook-card-top">
+                        <div class="outlook-sender-avatar">${(m.sender_name||'ST').split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}</div>
+                        <div class="outlook-sender-name">${m.sender_name || 'Staff Member'}</div>
+                        <div class="outlook-mail-time">${m.created_at ? m.created_at.substring(11,16) : ''}</div>
+                    </div>
+                    <div class="outlook-mail-subject">${m.subject}</div>
+                    <div class="outlook-mail-snippet">${m.body_html}</div>
+                </div>
+            `).join('');
+            selectMail(data.mails[0].id, data.mails[0].subject, data.mails[0].sender_name || 'Staff Member', data.mails[0].sender_email, data.mails[0].body_html, data.mails[0].created_at);
+        } else {
+            container.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-tertiary); font-size:0.85rem;">No emails found in ${folder}.</div>`;
+        }
+    } catch(err) { console.error(err); }
+}
+
+async function sendOpsMail(e) {
+    e.preventDefault();
+    const rec = document.getElementById('composer-recipients').value;
+    const sub = document.getElementById('composer-subject').value;
+    const body = document.getElementById('composer-body').value;
+
+    try {
+        const res = await fetch('/api/mail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recipients: [rec], subject: sub, body_html: body })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('modal-mail-composer').close();
+            alert('OpsMail sent successfully!');
+            switchFolder('sent', document.getElementById('folder-sent'));
+        }
+    } catch(err) { console.error(err); }
+}
+
+async function assignTaskFromEmail() {
+    try {
+        const res = await fetch(`/api/mail/${currentSelectedMailId}/assign-task`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert('Ops Task assigned from Email successfully!');
+        }
+    } catch(err) { console.error(err); }
+}
+
+function replyMail() { openMailComposer(); }
+function forwardMail() { openMailComposer(); }
+function markCurrentAsRead() { alert('Message marked as read'); }
+function deleteCurrentMail() { alert('Message moved to Deleted Items'); }
+function archiveCurrentMail() { alert('Message archived'); }
+function filterOutlookMails(q) {
+    const cards = document.querySelectorAll('.outlook-mail-card');
+    cards.forEach(c => {
+        const text = c.textContent.toLowerCase();
+        c.style.display = text.includes(q.toLowerCase()) ? 'flex' : 'none';
+    });
+}
+</script>
+{% endblock %}

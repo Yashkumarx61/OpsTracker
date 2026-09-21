@@ -14,12 +14,14 @@ import csv
 import functools
 import io
 import os
+import random
 import sqlite3
+import time
 from datetime import datetime
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, flash, jsonify, g, Response
+    url_for, flash, jsonify, g, Response, session
 )
 from flask_login import (
     LoginManager, UserMixin, login_user,
@@ -200,16 +202,31 @@ def init_db():
     db.execute("UPDATE users SET status = 'approved' WHERE status IS NULL OR status = ''")
     db.commit()
 
-    # Populate missing employee_ids
-    users_without_empid = db.execute("SELECT id FROM users WHERE employee_id IS NULL OR employee_id = ''").fetchall()
-    for row in users_without_empid:
+    # Populate missing or invalid employee_ids (e.g., if set to email)
+    users_invalid_empid = db.execute("SELECT id FROM users WHERE employee_id IS NULL OR employee_id = '' OR employee_id LIKE '%@%'").fetchall()
+    for row in users_invalid_empid:
         uid = row[0]
         emp_code = f"EMP-{1000 + uid}"
         db.execute("UPDATE users SET employee_id = ? WHERE id = ?", (emp_code, uid))
     db.commit()
 
+    # Sanitize seed typos in task titles
+    try:
+        db.execute("UPDATE tasks SET title = REPLACE(title, 'Updrade', 'Upgrade') WHERE title LIKE '%Updrade%'")
+        db.commit()
+    except Exception as e:
+        app.logger.warning(f"Seed typo fix warning: {e}")
+
+    # Unique index on team_name
+    try:
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_name ON teams(team_name)")
+        db.commit()
+    except Exception as e:
+        app.logger.warning(f"Team name index warning: {e}")
+
     db.close()
     app.logger.info(f"Database initialized at {Config.DB_PATH}")
+
 
 
 # Run DB init on startup
@@ -402,6 +419,118 @@ def register():
     return render_template("register.html")
 
 
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """Step 1: Accept email/username and generate 5-digit OTP."""
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        if not email:
+            flash("Please enter your email or username.", "error")
+            return render_template("forgot_password.html")
+
+        # Check if user exists
+        user = query_db("SELECT * FROM users WHERE email = ?", (email,), one=True)
+        if not user:
+            flash("No registered account found with that email.", "error")
+            return render_template("forgot_password.html")
+
+        # Generate 5-digit numeric OTP
+        otp_code = str(random.randint(10000, 99999))
+        session["reset_email"] = email
+        session["reset_otp"] = otp_code
+        session["reset_otp_expiry"] = time.time() + 600  # 10 minute expiry
+
+        app.logger.info(f"OTP generated for {email}: {otp_code}")
+        flash(f"Security OTP code generated: {otp_code} (Valid for 10 minutes)", "info")
+        return redirect(url_for("verify_otp"))
+
+    return render_template("forgot_password.html")
+
+
+@app.route("/verify-otp", methods=["GET", "POST"])
+def verify_otp():
+    """Step 2: Verify 5-digit OTP code."""
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    email = session.get("reset_email")
+    if not email:
+        flash("Password reset session expired. Please start over.", "warning")
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        # Handle individual digit inputs or combined OTP
+        d1 = request.form.get("otp_1", "")
+        d2 = request.form.get("otp_2", "")
+        d3 = request.form.get("otp_3", "")
+        d4 = request.form.get("otp_4", "")
+        d5 = request.form.get("otp_5", "")
+        entered_otp = (d1 + d2 + d3 + d4 + d5).strip() or request.form.get("otp", "").strip()
+
+        stored_otp = session.get("reset_otp")
+        expiry = session.get("reset_otp_expiry", 0)
+
+        if time.time() > expiry:
+            flash("OTP has expired. Please request a new code.", "error")
+            return redirect(url_for("forgot_password"))
+
+        if entered_otp and entered_otp == stored_otp:
+            session["otp_verified"] = True
+            flash("OTP verified successfully. Please enter your new password.", "success")
+            return redirect(url_for("reset_password"))
+        else:
+            flash("Invalid OTP code. Please check and try again.", "error")
+
+    return render_template("verify_otp.html", email=email)
+
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password():
+    """Step 3: Reset password for verified session."""
+    if current_user.is_authenticated:
+        return redirect(url_for("dashboard"))
+
+    email = session.get("reset_email")
+    if not email or not session.get("otp_verified"):
+        flash("Unauthorized access or session expired. Please request OTP first.", "error")
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if len(password) < 6:
+            flash("Password must be at least 6 characters.", "error")
+            return render_template("reset_password.html")
+
+        if password != confirm:
+            flash("Passwords do not match.", "error")
+            return render_template("reset_password.html")
+
+        try:
+            pwd_hash = generate_password_hash(password)
+            db = get_db()
+            db.execute("UPDATE users SET password_hash = ? WHERE email = ?", (pwd_hash, email))
+            db.commit()
+
+            # Clean up reset session variables
+            session.pop("reset_email", None)
+            session.pop("reset_otp", None)
+            session.pop("reset_otp_expiry", None)
+            session.pop("otp_verified", None)
+
+            flash("Password reset successfully! Please log in with your new password.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            app.logger.error(f"Failed to reset password for {email}: {e}")
+            flash("Failed to update password. Please try again.", "error")
+
+    return render_template("reset_password.html")
+
+
 @app.route("/logout")
 @login_required
 def logout():
@@ -463,7 +592,7 @@ def profile():
 @admin_required
 def admin_dashboard():
     """Admin executive dashboard with metrics, workload, tasks, teams, projects, tickets, and user offboarding."""
-    teams = query_db("SELECT * FROM teams ORDER BY team_name")
+    teams = query_db("SELECT DISTINCT id, team_name, description FROM teams ORDER BY team_name ASC")
     projects = query_db("""
         SELECT p.*, t.team_name
         FROM projects p
@@ -496,22 +625,23 @@ def admin_dashboard():
         ORDER BY tk.created_at DESC
     """)
 
-    # Executive Metrics Computation
+    # Executive Metrics Computation (Safely computed Resolution Velocity %)
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t["status"] == "Completed"])
     total_active_tasks = len([t for t in tasks if t["status"] != "Completed"])
 
     import datetime
     today_str = datetime.date.today().isoformat()
     overdue_count = len([t for t in tasks if t["due_date"] and t["due_date"] < today_str and t["status"] != "Completed"])
 
-    seven_days_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    resolution_velocity = len([t for t in tasks if t["status"] == "Completed" and t.get("created_at", "") >= seven_days_ago])
-
+    velocity = round((completed_tasks / total_tasks) * 100, 1) if total_tasks > 0 else 0.0
     bottleneck_alerts = len([t for t in tasks if t["status"] == "Blocked" or (t["due_date"] and t["due_date"] < today_str and t["status"] != "Completed")])
 
     metrics = {
         "active_tasks": total_active_tasks,
         "overdue_count": overdue_count,
-        "velocity": resolution_velocity,
+        "velocity": velocity,
+        "resolution_velocity": velocity,
         "bottlenecks": bottleneck_alerts
     }
 
@@ -589,7 +719,7 @@ def reject_user(user_id):
 @app.route("/admin/users/<int:user_id>/terminate", methods=["POST"])
 @admin_required
 def terminate_user(user_id):
-    """Admin: Terminate/offboard an employee account."""
+    """Admin: Terminate/offboard an employee account with Employee ID confirmation verification."""
     if user_id == current_user.id:
         flash("You cannot terminate your own admin account.", "error")
         return redirect(url_for("admin_dashboard"))
@@ -599,9 +729,17 @@ def terminate_user(user_id):
         flash("User not found.", "error")
         return redirect(url_for("admin_dashboard"))
 
+    target_emp_id = request.form.get("target_emp_id", "").strip().upper()
+    expected_emp_id = (user.get("employee_id") or f"EMP-{1000 + user['id']}").strip().upper()
+
+    if target_emp_id != expected_emp_id:
+        flash(f"Verification Failed: Confirmation Employee ID '{target_emp_id}' does not match '{expected_emp_id}'. Account offboarding cancelled.", "error")
+        return redirect(url_for("admin_dashboard"))
+
     execute_db("UPDATE users SET status = 'terminated' WHERE id = ?", (user_id,))
-    flash(f"Employee '{user['full_name']}' ({user['employee_id']}) has been terminated and offboarded.", "warning")
+    flash(f"Employee '{user['full_name']}' ({expected_emp_id}) has been terminated and offboarded.", "warning")
     return redirect(url_for("admin_dashboard"))
+
 
 
 @app.route("/admin/users/<int:user_id>/reactivate", methods=["POST"])
@@ -1232,6 +1370,412 @@ def api_send_chat_message():
         return jsonify({"ok": True, "id": msg_id, "sender_name": current_user.full_name})
 
     return jsonify({"error": "Invalid chat_type"}), 400
+
+
+# ============================================================
+# Routes — User Preferences & Quick Action Modals
+# ============================================================
+@app.route("/api/user/preferences", methods=["POST"])
+@login_required
+def update_user_preferences():
+    """API: Update user status, title, phone, department, or preferences."""
+    data = request.get_json(silent=True) or request.form
+    status = data.get("status", current_user.current_status)
+    phone = data.get("phone", current_user.phone)
+    job_title = data.get("job_title", current_user.job_title)
+    department = data.get("department", current_user.department)
+
+    if status in ("Available", "Busy", "Away", "Do Not Disturb", "On Call", "On Leave", "Offline"):
+        execute_db(
+            "UPDATE users SET current_status = ?, phone = ?, job_title = ?, department = ? WHERE id = ?",
+            (status, phone, job_title, department, current_user.id)
+        )
+        current_user.current_status = status
+        current_user.phone = phone
+        current_user.job_title = job_title
+        current_user.department = department
+
+    return jsonify({"success": True, "status": status, "message": "Preferences updated successfully."})
+
+
+@app.route("/api/quick/team", methods=["POST"])
+@admin_required
+def quick_create_team():
+    """API: Modal quick-create team."""
+    data = request.get_json(silent=True) or request.form
+    name = data.get("team_name", "").strip()
+    desc = data.get("description", "").strip()
+    if not name:
+        return jsonify({"error": "Team name is required"}), 400
+    try:
+        t_id = execute_db("INSERT INTO teams (team_name, description) VALUES (?, ?)", (name, desc))
+        return jsonify({"success": True, "team_id": t_id, "team_name": name})
+    except Exception as e:
+        return jsonify({"error": "A team with this name already exists."}), 400
+
+
+@app.route("/api/quick/project", methods=["POST"])
+@admin_required
+def quick_create_project():
+    """API: Modal quick-create project."""
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip()
+    desc = data.get("description", "").strip()
+    team_id = data.get("team_id")
+    if not title or not team_id:
+        return jsonify({"error": "Project title and team selection are required"}), 400
+    p_id = execute_db("INSERT INTO projects (title, description, team_id) VALUES (?, ?, ?)", (title, desc, team_id))
+    return jsonify({"success": True, "project_id": p_id, "title": title})
+
+
+@app.route("/api/quick/task", methods=["POST"])
+@login_required
+def quick_create_task():
+    """API: Modal quick-dispatch task."""
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip()
+    desc = data.get("description", "").strip()
+    project_id = data.get("project_id")
+    assigned_to = data.get("assigned_to")
+    priority = data.get("priority", "Medium")
+    category_tag = data.get("category_tag", "Feature")
+    due_date = data.get("due_date")
+
+    if not title or not project_id:
+        return jsonify({"error": "Task title and project selection are required"}), 400
+    t_id = execute_db(
+        "INSERT INTO tasks (title, description, status, priority, category_tag, project_id, assigned_to, due_date) VALUES (?, ?, 'Backlog', ?, ?, ?, ?, ?)",
+        (title, desc, priority, category_tag, project_id, assigned_to if assigned_to else None, due_date if due_date else None)
+    )
+    return jsonify({"success": True, "task_id": t_id, "title": title})
+
+
+# ============================================================
+# Routes — OpsChannels (Teams Module)
+# ============================================================
+@app.route("/channels")
+@login_required
+def ops_channels():
+    """Teams-style OpsChannels team collaboration & chat workspace."""
+    all_teams = query_db("SELECT DISTINCT id, team_name, description FROM teams ORDER BY team_name ASC")
+
+    # Seed default channels for teams if empty
+    for team in all_teams:
+        chk = query_db("SELECT id FROM channels WHERE team_id = ?", (team["id"],))
+        if not chk:
+            execute_db("INSERT INTO channels (team_id, name, type) VALUES (?, ?, 'public')", (team["id"], "general"))
+            execute_db("INSERT INTO channels (team_id, name, type) VALUES (?, ?, 'public')", (team["id"], "devops"))
+
+    # Global public channels
+    gen_chk = query_db("SELECT id FROM channels WHERE team_id IS NULL AND name = 'all-hands'", one=True)
+    if not gen_chk:
+        execute_db("INSERT INTO channels (team_id, name, type) VALUES (NULL, 'all-hands', 'public')")
+
+    # Enforce RBAC Inter-Team Isolation
+    is_admin_or_lead = current_user.role in ("Admin", "Project Lead")
+    user_team_rows = query_db("SELECT team_id FROM team_members WHERE user_id = ?", (current_user.id,))
+    user_team_ids = set(r["team_id"] for r in user_team_rows) if user_team_rows else set()
+
+    if is_admin_or_lead:
+        teams = all_teams
+        channels = query_db("""
+            SELECT c.*, t.team_name
+            FROM channels c
+            LEFT JOIN teams t ON c.team_id = t.id
+            ORDER BY c.type DESC, c.name ASC
+        """)
+        users = query_db("SELECT id, full_name, email, employee_id, role, current_status, department FROM users WHERE status = 'approved' AND id != ? ORDER BY full_name", (current_user.id,))
+    else:
+        # Regular employee: Only show assigned teams, team channels + global public channels
+        teams = [t for t in all_teams if t["id"] in user_team_ids]
+        if user_team_ids:
+            placeholders = ",".join("?" for _ in user_team_ids)
+            sql = f"""
+                SELECT c.*, t.team_name
+                FROM channels c
+                LEFT JOIN teams t ON c.team_id = t.id
+                WHERE c.team_id IS NULL OR c.team_id IN ({placeholders})
+                ORDER BY c.type DESC, c.name ASC
+            """
+            channels = query_db(sql, tuple(user_team_ids))
+            
+            # Colleagues only within user's assigned teams + Admins/Leads
+            user_sql = f"""
+                SELECT DISTINCT u.id, u.full_name, u.email, u.employee_id, u.role, u.current_status, u.department
+                FROM users u
+                LEFT JOIN team_members tm ON u.id = tm.user_id
+                WHERE u.status = 'approved' AND u.id != ? AND (tm.team_id IN ({placeholders}) OR u.role IN ('Admin', 'Project Lead'))
+                ORDER BY u.full_name
+            """
+            users = query_db(user_sql, (current_user.id, *user_team_ids))
+        else:
+            channels = query_db("SELECT c.*, t.team_name FROM channels c LEFT JOIN teams t ON c.team_id = t.id WHERE c.team_id IS NULL ORDER BY c.name ASC")
+            users = query_db("SELECT id, full_name, email, employee_id, role, current_status, department FROM users WHERE status = 'approved' AND id != ? AND role IN ('Admin', 'Project Lead') ORDER BY full_name", (current_user.id,))
+
+    projects = query_db("SELECT id, title FROM projects ORDER BY title ASC")
+
+    return render_template(
+        "ops_channels.html",
+        teams=teams,
+        channels=channels,
+        users=users or [],
+        projects=projects or [],
+        is_admin_or_lead=is_admin_or_lead,
+        user_team_ids=list(user_team_ids)
+    )
+
+
+@app.route("/api/channels/<int:channel_id>/messages", methods=["GET", "POST"])
+@login_required
+def channel_messages(channel_id):
+    """API: Get or post messages in OpsChannels with RBAC authorization check."""
+    channel = query_db("SELECT * FROM channels WHERE id = ?", (channel_id,), one=True)
+    if not channel:
+        return jsonify({"error": "Channel not found"}), 404
+
+    # RBAC Inter-team authorization check
+    is_admin_or_lead = current_user.role in ("Admin", "Project Lead")
+    if not is_admin_or_lead and channel["team_id"] is not None:
+        user_team = query_db("SELECT 1 FROM team_members WHERE user_id = ? AND team_id = ?", (current_user.id, channel["team_id"]), one=True)
+        if not user_team:
+            return jsonify({"error": "Access Denied: You are not a member of the team assigned to this channel."}), 403
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form
+        content = data.get("content", "").strip()
+        parent_id = data.get("parent_id")
+        if not content:
+            return jsonify({"error": "Message content is required"}), 400
+
+        msg_id = execute_db(
+            "INSERT INTO messages (channel_id, sender_id, content, parent_id) VALUES (?, ?, ?, ?)",
+            (channel_id, current_user.id, content, parent_id if parent_id else None)
+        )
+        msg = query_db("""
+            SELECT m.*, u.full_name AS sender_name, u.employee_id AS sender_emp_id, u.role AS sender_role
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.id = ?
+        """, (msg_id,), one=True)
+        return jsonify({"success": True, "message": msg})
+    else:
+        messages = query_db("""
+            SELECT m.*, u.full_name AS sender_name, u.employee_id AS sender_emp_id, u.role AS sender_role
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.channel_id = ?
+            ORDER BY m.created_at ASC
+        """, (channel_id,))
+        for m in messages:
+            m["reactions"] = query_db("SELECT emoji, COUNT(*) as count FROM message_reactions WHERE message_id = ? GROUP BY emoji", (m["id"],))
+        return jsonify({"messages": messages})
+
+
+@app.route("/api/messages/<int:message_id>/react", methods=["POST"])
+@login_required
+def react_message(message_id):
+    """API: Add emoji reaction to channel message."""
+    data = request.get_json(silent=True) or request.form
+    emoji = data.get("emoji", "👍")
+    try:
+        execute_db("INSERT OR IGNORE INTO message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)", (message_id, current_user.id, emoji))
+    except Exception:
+        pass
+    return jsonify({"success": True})
+
+
+@app.route("/api/messages/<int:message_id>/convert-to-task", methods=["POST"])
+@login_required
+def convert_message_to_task(message_id):
+    """API: Convert OpsChannels message directly into an Ops Task."""
+    msg = query_db("SELECT * FROM messages WHERE id = ?", (message_id,), one=True)
+    if not msg:
+        return jsonify({"error": "Message not found"}), 404
+
+    data = request.get_json(silent=True) or request.form
+    project_id = data.get("project_id")
+    if not project_id:
+        p = query_db("SELECT id FROM projects ORDER BY id ASC", one=True)
+        project_id = p["id"] if p else 1
+
+    clean_content = msg['content'][:60]
+    title = f"Task: {clean_content}..."
+    task_id = execute_db(
+        "INSERT INTO tasks (title, description, status, priority, category_tag, project_id, assigned_to) VALUES (?, ?, 'Backlog', 'Medium', 'Ops', ?, ?)",
+        (title, f"Converted from OpsChannels message:\n\n{msg['content']}", project_id, current_user.id)
+    )
+    return jsonify({"success": True, "task_id": task_id, "message": "Message successfully converted to Ops Task!"})
+
+
+# ============================================================
+# Routes — OpsMail (Outlook Module)
+# ============================================================
+@app.route("/mail")
+@login_required
+def ops_mail():
+    """Outlook-style OpsMail desktop workspace."""
+    users = query_db("SELECT id, full_name, email, employee_id, role, department FROM users WHERE status = 'approved' AND id != ? ORDER BY full_name", (current_user.id,))
+    projects = query_db("SELECT id, title FROM projects ORDER BY title ASC")
+    return render_template("ops_mail.html", users=users, projects=projects)
+
+
+@app.route("/api/mail", methods=["GET", "POST"])
+@login_required
+def api_mail():
+    """API: List or send OpsMail messages."""
+    import json
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form
+        recipients = data.get("recipients", [])
+        if isinstance(recipients, str):
+            recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+        subject = data.get("subject", "No Subject").strip()
+        body_html = data.get("body_html", "").strip()
+        is_draft = int(data.get("is_draft", 0))
+
+        mail_id = execute_db(
+            "INSERT INTO mail_messages (sender_id, recipient_ids, subject, body_html, is_draft) VALUES (?, ?, ?, ?, ?)",
+            (current_user.id, json.dumps(recipients), subject, body_html, is_draft)
+        )
+        return jsonify({"success": True, "mail_id": mail_id})
+    else:
+        folder = request.args.get("folder", "inbox")
+        user_email_param = f'%"{current_user.email}"%'
+        user_id_param = f'%"{current_user.id}"%'
+
+        if folder == "sent":
+            mails = query_db("""
+                SELECT m.*, u.full_name AS sender_name, u.email AS sender_email
+                FROM mail_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.sender_id = ? AND m.is_draft = 0 AND m.is_deleted = 0
+                ORDER BY m.created_at DESC
+            """, (current_user.id,))
+        elif folder == "drafts":
+            mails = query_db("""
+                SELECT m.*, u.full_name AS sender_name, u.email AS sender_email
+                FROM mail_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.sender_id = ? AND m.is_draft = 1 AND m.is_deleted = 0
+                ORDER BY m.created_at DESC
+            """, (current_user.id,))
+        elif folder == "archive":
+            mails = query_db("""
+                SELECT m.*, u.full_name AS sender_name, u.email AS sender_email
+                FROM mail_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE (m.sender_id = ? OR m.recipient_ids LIKE ? OR m.recipient_ids LIKE ?) AND m.is_archived = 1 AND m.is_deleted = 0
+                ORDER BY m.created_at DESC
+            """, (current_user.id, user_email_param, user_id_param))
+        elif folder == "trash":
+            mails = query_db("""
+                SELECT m.*, u.full_name AS sender_name, u.email AS sender_email
+                FROM mail_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE (m.sender_id = ? OR m.recipient_ids LIKE ? OR m.recipient_ids LIKE ?) AND m.is_deleted = 1
+                ORDER BY m.created_at DESC
+            """, (current_user.id, user_email_param, user_id_param))
+        else:  # inbox
+            mails = query_db("""
+                SELECT m.*, u.full_name AS sender_name, u.email AS sender_email
+                FROM mail_messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE (m.recipient_ids LIKE ? OR m.recipient_ids LIKE ? OR m.recipient_ids = '["all"]' OR m.sender_id = ?)
+                  AND m.is_draft = 0 AND m.is_archived = 0 AND m.is_deleted = 0
+                ORDER BY m.created_at DESC
+            """, (user_email_param, user_id_param, current_user.id))
+
+        return jsonify({"mails": mails})
+
+
+@app.route("/api/mail/<int:mail_id>/assign-task", methods=["POST"])
+@login_required
+def assign_task_from_mail(mail_id):
+    """API: Quick-action 'Assign Task from Email'."""
+    mail = query_db("SELECT * FROM mail_messages WHERE id = ?", (mail_id,), one=True)
+    if not mail:
+        return jsonify({"error": "Email not found"}), 404
+
+    data = request.get_json(silent=True) or request.form
+    project_id = data.get("project_id")
+    if not project_id:
+        p = query_db("SELECT id FROM projects ORDER BY id ASC", one=True)
+        project_id = p["id"] if p else 1
+
+    task_id = execute_db(
+        "INSERT INTO tasks (title, description, status, priority, category_tag, project_id, assigned_to) VALUES (?, ?, 'Backlog', 'Medium', 'Feature', ?, ?)",
+        (f"Email Task: {mail['subject']}", f"Assigned from OpsMail:\n\n{mail['body_html']}", project_id, current_user.id)
+    )
+    return jsonify({"success": True, "task_id": task_id, "message": "Task created from OpsMail!"})
+
+
+# ============================================================
+# Routes — OpsMeet (Google Meet Module)
+# ============================================================
+@app.route("/meet")
+@app.route("/meet/<room_code>")
+@login_required
+def ops_meet(room_code=None):
+    """Google Meet-style OpsMeet instant & scheduled video rooms."""
+    import uuid
+    if not room_code:
+        room_code = f"meet-{str(uuid.uuid4())[:8]}"
+        return redirect(url_for("ops_meet", room_code=room_code))
+
+    meeting = query_db("SELECT * FROM meetings WHERE room_code = ?", (room_code,), one=True)
+    if not meeting:
+        m_id = execute_db(
+            "INSERT INTO meetings (room_code, host_id, title, status) VALUES (?, ?, ?, 'live')",
+            (room_code, current_user.id, f"OpsMeet Room ({room_code})")
+        )
+        meeting = query_db("SELECT * FROM meetings WHERE id = ?", (m_id,), one=True)
+
+    # Participant logging
+    execute_db(
+        "INSERT INTO meeting_participants (meeting_id, user_id) VALUES (?, ?)",
+        (meeting["id"], current_user.id)
+    )
+
+    projects = query_db("SELECT id, title FROM projects ORDER BY title ASC")
+    users = query_db("SELECT id, full_name, email, employee_id FROM users WHERE status = 'approved' ORDER BY full_name")
+
+    return render_template("ops_meet.html", meeting=meeting, room_code=room_code, projects=projects, users=users)
+
+
+@app.route("/api/meetings/instant", methods=["POST"])
+@login_required
+def create_instant_meeting():
+    """API: Generate instant 'Meet Now' room link."""
+    import uuid
+    room_code = f"meet-{str(uuid.uuid4())[:8]}"
+    execute_db(
+        "INSERT INTO meetings (room_code, host_id, title, status) VALUES (?, ?, 'Instant OpsMeet Sync', 'live')",
+        (room_code, current_user.id)
+    )
+    return jsonify({"success": True, "room_code": room_code, "url": f"/meet/{room_code}"})
+
+
+@app.route("/api/meetings/<int:meeting_id>/log-task", methods=["POST"])
+@login_required
+def log_meeting_task(meeting_id):
+    """API: Log operational action item directly during video call."""
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip()
+    project_id = data.get("project_id")
+    assigned_to = data.get("assigned_to")
+
+    if not title:
+        return jsonify({"error": "Task title required"}), 400
+    if not project_id:
+        p = query_db("SELECT id FROM projects ORDER BY id ASC", one=True)
+        project_id = p["id"] if p else 1
+
+    task_id = execute_db(
+        "INSERT INTO tasks (title, description, status, priority, category_tag, project_id, assigned_to) VALUES (?, ?, 'Backlog', 'High', 'Ops', ?, ?)",
+        (title, f"In-call action item logged during OpsMeet session #{meeting_id}.", project_id, assigned_to if assigned_to else current_user.id)
+    )
+    return jsonify({"success": True, "task_id": task_id, "message": "In-call action item logged successfully!"})
+
 
 
 # ============================================================

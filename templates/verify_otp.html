@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Verify OTP — OpsTracker{% endblock %}
+
+{% block content %}
+<div class="login-page-backdrop">
+    <div class="login-page-glow login-page-glow--pink"></div>
+    <div class="login-page-glow login-page-glow--blue"></div>
+
+    <div class="login-master-card" style="max-width:440px; margin: 40px auto; min-height:auto;">
+        <div class="login-form-panel" style="padding:40px 32px; width:100%;">
+            
+            <!-- Icon Badge (Key icon) -->
+            <div style="display:flex; justify-content:center; margin-bottom:20px;">
+                <div style="width:72px; height:72px; background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius:20px; display:flex; align-items:center; justify-content:center; box-shadow: 0 10px 25px rgba(29, 78, 216, 0.3);">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Header -->
+            <div class="login-form-header" style="text-align:center; margin-bottom:28px;">
+                <h1 class="login-form-title" style="font-size:1.6rem; font-weight:800;">Enter OTP</h1>
+                <p class="login-form-subtitle" style="font-size:0.88rem; color:var(--text-tertiary);">Enter the 5-Digit Code Sent to You</p>
+            </div>
+
+            <!-- Form -->
+            <form method="POST" action="{{ url_for('verify_otp') }}" class="login-form" id="otp-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- 5 Digit OTP Inputs -->
+                <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:24px;">
+                    <input type="text" name="otp_1" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="otp-box" required autofocus>
+                    <input type="text" name="otp_2" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="otp-box" required>
+                    <input type="text" name="otp_3" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="otp-box" required>
+                    <input type="text" name="otp_4" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="otp-box" required>
+                    <input type="text" name="otp_5" maxlength="1" pattern="[0-9]*" inputmode="numeric" class="otp-box" required>
+                </div>
+
+                <button type="submit" class="login-submit" style="height:48px; border-radius:14px; background:#2563eb; font-weight:700; font-size:1rem;">
+                    Continue
+                </button>
+            </form>
+
+            <!-- Resend Footer -->
+            <div style="text-align:center; margin-top:24px;">
+                <p style="font-size:0.85rem; color:var(--text-tertiary); margin-bottom:4px;">Didn't you receive any code?</p>
+                <a href="{{ url_for('forgot_password') }}" style="color:#2563eb; font-weight:600; font-size:0.9rem; text-decoration:none;">Resend Code</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+.otp-box {
+    width: 54px;
+    height: 56px;
+    text-align: center;
+    font-size: 1.4rem;
+    font-weight: 700;
+    border-radius: 14px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+.otp-box:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const inputs = document.querySelectorAll('.otp-box');
+    inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+            if (e.target.value.length === 1 && index < inputs.length - 1) {
+                inputs[index + 1].focus();
+            }
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                inputs[index - 1].focus();
+            }
+        });
+        input.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = e.clipboardData.getData('text').trim();
+            if (/^\d{5}$/.test(pasteData)) {
+                pasteData.split('').forEach((char, i) => {
+                    if (inputs[i]) inputs[i].value = char;
+                });
+                inputs[4].focus();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

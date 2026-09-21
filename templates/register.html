@@ -2,75 +2,78 @@
 {% block title %}Register — OpsTracker{% endblock %}
 
 {% block content %}
-<div class="auth-wrapper">
-    <div class="auth-container">
+<div class="login-page-backdrop" style="display:flex; align-items:center; justify-content:center; min-height:92vh; padding:24px 16px;">
+    <!-- ===== CENTERED MASTER CARD ===== -->
+    <div class="login-master-card" style="max-width:440px; width:100%; grid-template-columns:1fr; border-radius:20px; box-shadow:0 15px 35px rgba(0,0,0,0.06); overflow:hidden; background:#ffffff;">
 
-        <!-- Header -->
-        <div class="auth-header">
-            <div class="auth-icon-wrap auth-icon-emerald">
-                <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+        <!-- ── Form Panel ── -->
+        <div class="login-form-panel" style="padding:40px 36px; width:100%;">
+
+            <!-- Logo / Brand -->
+            <div class="login-form-brand" style="justify-content:center; margin-bottom:24px;">
+                <svg class="login-form-logo-icon" viewBox="0 0 28 28" fill="none" style="width:28px; height:28px;">
+                    <circle cx="14" cy="14" r="13" stroke="#111" stroke-width="1.5"/>
+                    <circle cx="10" cy="12" r="2.5" fill="#111"/>
+                    <circle cx="18" cy="12" r="2.5" fill="#111"/>
+                    <circle cx="14" cy="18" r="2.5" fill="#111"/>
+                    <line x1="10" y1="12" x2="18" y2="12" stroke="#111" stroke-width="1"/>
+                    <line x1="10" y1="12" x2="14" y2="18" stroke="#111" stroke-width="1"/>
+                    <line x1="18" y1="12" x2="14" y2="18" stroke="#111" stroke-width="1"/>
                 </svg>
+                <span class="login-form-brand-name" style="font-size:1.25rem; font-weight:700; color:#111;">OpsTracker</span>
             </div>
-            <h1 class="auth-title">Create your account</h1>
-            <p class="auth-subtitle">Join OpsTracker to manage projects & tasks</p>
-        </div>
 
-        <!-- Card -->
-        <div class="auth-card">
-            <form method="POST" action="{{ url_for('register') }}" class="auth-form">
+            <!-- Header -->
+            <div class="login-form-header" style="text-align:center; margin-bottom:28px;">
+                <h1 class="login-form-title" style="font-size:1.85rem; font-weight:800; font-family:'Georgia', serif; color:#111; margin-bottom:8px;">Create Account</h1>
+                <p class="login-form-subtitle" style="font-size:0.88rem; color:#666; margin:0;">Enter your details to register your workspace account</p>
+            </div>
+
+            <!-- Form -->
+            <form method="POST" action="{{ url_for('register') }}" class="login-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
                 <!-- Full Name -->
-                <div>
-                    <label for="full_name" class="label">Full name</label>
-                    <input type="text" id="full_name" name="full_name" required autocomplete="name"
-                        class="input" placeholder="Jane Doe">
+                <div class="login-field">
+                    <label for="full_name" class="login-label">Full Name</label>
+                    <input type="text" id="full_name" name="full_name" required autocomplete="name" class="login-input" placeholder="Jane Doe">
                 </div>
 
                 <!-- Email -->
-                <div>
-                    <label for="email" class="label">Email address</label>
-                    <input type="email" id="email" name="email" required autocomplete="email"
-                        class="input" placeholder="jane@company.com">
+                <div class="login-field">
+                    <label for="email" class="login-label">Email Address</label>
+                    <input type="email" id="email" name="email" required autocomplete="email" class="login-input" placeholder="jane@company.com">
                 </div>
 
                 <!-- Employee ID (Optional) -->
-                <div>
-                    <label for="employee_id" class="label">Employee ID <span style="font-weight:400;color:var(--text-tertiary)">(Optional)</span></label>
-                    <input type="text" id="employee_id" name="employee_id"
-                        class="input" placeholder="e.g. EMP-1005 (auto-generated if empty)">
+                <div class="login-field">
+                    <label for="employee_id" class="login-label">Employee ID <span style="font-weight:400;color:var(--text-tertiary); font-size:0.75rem;">(Optional)</span></label>
+                    <input type="text" id="employee_id" name="employee_id" class="login-input" placeholder="e.g. EMP-1005">
                 </div>
 
                 <!-- Password -->
-                <div>
-                    <label for="password" class="label">Password</label>
-                    <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"
-                        class="input" placeholder="Minimum 6 characters">
+                <div class="login-field">
+                    <label for="password" class="login-label">Password</label>
+                    <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password" class="login-input" placeholder="Minimum 6 characters">
                 </div>
 
                 <!-- Confirm Password -->
-                <div>
-                    <label for="confirm_password" class="label">Confirm password</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password"
-                        class="input" placeholder="Re-enter your password">
+                <div class="login-field">
+                    <label for="confirm_password" class="login-label">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password" class="login-input" placeholder="Re-enter your password">
                 </div>
 
                 <!-- Submit -->
-                <button type="submit" class="btn-primary btn-emerald">
-                    <svg style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Create Account
-                </button>
+                <button type="submit" class="login-submit" style="margin-top:12px;">Create Account</button>
             </form>
+
+            <!-- Footer -->
+            <p class="login-form-footer">
+                Already have an account?
+                <a href="{{ url_for('login') }}">Sign In</a>
+            </p>
         </div>
 
-        <!-- Footer link -->
-        <p class="auth-footer">
-            Already have an account?
-            <a href="{{ url_for('login') }}">Sign in</a>
-        </p>
-    </div>
-</div>
+    </div><!-- .login-master-card -->
+</div><!-- .login-page-backdrop -->
 {% endblock %}

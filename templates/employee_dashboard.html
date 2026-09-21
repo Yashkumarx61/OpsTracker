@@ -13,9 +13,10 @@
         <p class="page-subtitle">Track, update, and collaborate on your assigned operational tasks and support tickets.</p>
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
-        <span class="emp-id-badge" style="font-size: 0.85rem; padding: 6px 12px;">{{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</span>
+        <span class="emp-id-badge" style="font-size: 0.85rem; padding: 6px 12px;">{{ current_user.employee_id if (current_user.employee_id and not '@' in current_user.employee_id) else ('EMP-' ~ (1000 + current_user.id)) }}</span>
         <span class="role-badge role-employee">{{ current_user.role }}</span>
     </div>
+
 </div>
 
 <!-- ===== TEAM AVAILABILITY CHIP BAR ===== -->

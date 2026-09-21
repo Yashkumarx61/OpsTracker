@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}OpsChannels — Team Workspace{% endblock %}
+
+{% block content %}
+<div class="teams-app">
+    <!-- 1. Left App Navigation Rail -->
+    <aside class="teams-app-rail">
+        <div class="teams-rail-item" title="Activity">
+            <i data-lucide="bell" style="width:20px;height:20px;"></i>
+            <span>Activity</span>
+        </div>
+        <div class="teams-rail-item active" title="Channels">
+            <i data-lucide="users" style="width:20px;height:20px;"></i>
+            <span>Channels</span>
+        </div>
+        <div class="teams-rail-item" title="Chat" onclick="window.location.href='/chat'">
+            <i data-lucide="message-square" style="width:20px;height:20px;"></i>
+            <span>Chat</span>
+        </div>
+        <div class="teams-rail-item" title="Calendar">
+            <i data-lucide="calendar" style="width:20px;height:20px;"></i>
+            <span>Calendar</span>
+        </div>
+        <div class="teams-rail-item" title="OpsMeet" onclick="window.location.href='/meet'">
+            <i data-lucide="video" style="width:20px;height:20px;"></i>
+            <span>Meet</span>
+        </div>
+    </aside>
+
+    <!-- 2. Teams Channel & Direct Message Sidebar -->
+    <aside class="teams-sidebar">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+            <h2 style="font-size:1.05rem; font-weight:800; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-primary);">
+                <i data-lucide="layers" style="color:#6264a7;"></i> OpsChannels
+            </h2>
+            {% if current_user.is_admin %}
+            <button type="button" class="btn-ghost" title="Create New Team" onclick="openQuickModal('team')" style="padding:4px;"><i data-lucide="plus"></i></button>
+            {% else %}
+            <span class="badge" style="font-size:0.65rem; background:var(--bg-surface); color:var(--text-tertiary);" title="Only Admins can create teams">Team Mode</span>
+            {% endif %}
+        </div>
+
+        <!-- Global Public Channels -->
+        <div class="teams-tree-team">
+            <div class="teams-team-header">
+                <i data-lucide="globe" style="width:16px;height:16px; color:var(--sky);"></i> Organization Hub
+            </div>
+            <div class="teams-channel-item active" onclick="loadTeamsChannel(1, 'all-hands', 'Organization Hub')">
+                <i data-lucide="hash" style="width:14px;height:14px;"></i> all-hands
+            </div>
+        </div>
+
+        <!-- Assigned Team Channels (Filtered by RBAC) -->
+        {% if teams %}
+            {% for t in teams %}
+            <div class="teams-tree-team">
+                <div class="teams-team-header">
+                    <i data-lucide="shield" style="width:16px;height:16px; color:#6264a7;"></i> {{ t.team_name }}
+                </div>
+                <div class="teams-channel-item" onclick="loadTeamsChannel({{ t.id * 10 + 1 }}, 'general', '{{ t.team_name }}')">
+                    <i data-lucide="hash" style="width:14px;height:14px;"></i> general
+                </div>
+                <div class="teams-channel-item" onclick="loadTeamsChannel({{ t.id * 10 + 2 }}, 'devops', '{{ t.team_name }}')">
+                    <i data-lucide="hash" style="width:14px;height:14px;"></i> devops
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="font-size:0.8rem; color:var(--text-tertiary); padding:8px 12px;">No team channels assigned.</div>
+        {% endif %}
+
+        <!-- Direct Messages Section (Filtered by RBAC Team Membership) -->
+        <div style="margin-top:16px;">
+            <div class="teams-team-header" style="color:var(--text-tertiary); font-size:0.75rem; text-transform:uppercase;">
+                Direct Messages (Team Members)
+            </div>
+            {% if users %}
+                {% for u in users %}
+                <div class="teams-channel-item" onclick="initiateDirectTeamsChat({{ u.id }}, '{{ u.full_name }}')">
+                    <span class="status-indicator status-dot-{{ u.current_status|lower|replace(' ', '-') }}" style="position:static; display:inline-block; width:8px; height:8px;"></span>
+                    <span>{{ u.full_name }}</span>
+                    <span style="font-size:0.7rem; color:var(--text-tertiary); margin-left:auto;">{{ u.role }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="font-size:0.78rem; color:var(--text-tertiary); padding:6px 12px;">No colleagues in your team.</div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- 3. Teams Main Channel View -->
+    <main class="teams-main">
+        <header class="teams-header-bar">
+            <div>
+                <div class="teams-channel-title" id="teams-channel-title">
+                    <i data-lucide="hash" style="color:#6264a7;"></i> #all-hands
+                </div>
+                <span class="text-muted" style="font-size:0.78rem;" id="teams-channel-desc">Organization-wide announcement channel & operational sync hub.</span>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <a href="{{ url_for('ops_meet') }}" class="btn-primary" style="background:#6264a7; font-size:0.8rem; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;">
+                    <i data-lucide="video" style="width:14px;height:14px;"></i> Meet Now
+                </a>
+            </div>
+        </header>
+
+        <!-- Teams Channel Tabs -->
+        <div class="teams-tabs">
+            <div class="teams-tab active">Posts</div>
+            <div class="teams-tab">Files</div>
+            <div class="teams-tab">Wiki Notes</div>
+            <div class="teams-tab">Convert Tasks</div>
+        </div>
+
+        <!-- Teams Posts Message Feed -->
+        <div class="teams-chat-feed" id="teams-chat-feed">
+            <div class="teams-post-card">
+                <div class="teams-post-header">
+                    <div class="teams-post-user">
+                        <div class="teams-user-avatar">SA</div>
+                        <div>
+                            <div style="font-weight:700; font-size:0.9rem; color:var(--text-primary);">System Admin</div>
+                            <div style="font-size:0.75rem; color:var(--text-tertiary);">Today at 10:15 AM</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-ghost" onclick="convertTeamsPostToTask(1)"><i data-lucide="check-square" style="width:14px;height:14px; color:var(--emerald);"></i> Task</button>
+                </div>
+                <div style="font-size:0.92rem; line-height:1.6; color:var(--text-primary);">
+                    🚀 Welcome to <strong>OpsChannels</strong>! Unified operational collaboration workspace with RBAC team isolation.
+                </div>
+                <div class="teams-reaction-bar">
+                    <span class="teams-reaction-pill" onclick="reactPost(1, '👍')">👍 4</span>
+                    <span class="teams-reaction-pill" onclick="reactPost(1, '❤️')">❤️ 2</span>
+                    <span class="teams-reaction-pill" onclick="reactPost(1, '🚀')">🚀 5</span>
+                </div>
+            </div>
+
+            <div class="teams-post-card">
+                <div class="teams-post-header">
+                    <div class="teams-post-user">
+                        <div class="teams-user-avatar" style="background:var(--sky);">DS</div>
+                        <div>
+                            <div style="font-weight:700; font-size:0.9rem; color:var(--text-primary);">Dinesh Singh</div>
+                            <div style="font-size:0.75rem; color:var(--text-tertiary);">Today at 10:20 AM</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-ghost" onclick="convertTeamsPostToTask(2)"><i data-lucide="check-square" style="width:14px;height:14px; color:var(--emerald);"></i> Task</button>
+                </div>
+                <div style="font-size:0.92rem; line-height:1.6; color:var(--text-primary);">
+                    All database migrations and RBAC permissions loaded cleanly in staging.
+                </div>
+                <div class="teams-reaction-bar">
+                    <span class="teams-reaction-pill" onclick="reactPost(2, '👍')">👍 3</span>
+                    <span class="teams-reaction-pill" onclick="reactPost(2, '🔥')">🔥 3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teams Composer Bar -->
+        <div class="teams-composer">
+            <form class="teams-composer-box" onsubmit="sendTeamsPost(event)">
+                <textarea id="teams-post-input" placeholder="Start a new conversation or reply to team... (Markdown supported)" required></textarea>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; gap:10px; color:var(--text-tertiary);">
+                        <i data-lucide="paperclip" style="width:16px;height:16px; cursor:pointer;"></i>
+                        <i data-lucide="smile" style="width:16px;height:16px; cursor:pointer;"></i>
+                        <i data-lucide="image" style="width:16px;height:16px; cursor:pointer;"></i>
+                    </div>
+                    <button type="submit" class="btn-primary" style="background:#6264a7; padding:6px 16px;"><i data-lucide="send" style="width:14px;height:14px;"></i> Post</button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<!-- Convert Teams Post to Task Modal -->
+<dialog id="modal-convert-task" class="custom-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i data-lucide="check-square" style="color:var(--emerald);"></i> Convert Teams Post to Ops Task</h3>
+            <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-convert-task').close()">&times;</button>
+        </div>
+        <form onsubmit="submitTeamsPostToTask(event)">
+            <input type="hidden" id="convert-msg-id" name="message_id">
+            <div class="form-group">
+                <label class="label">Assign to Project</label>
+                <select id="convert-project-id" name="project_id" class="form-input">
+                    {% for p in projects %}
+                    <option value="{{ p.id }}">{{ p.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="modal-footer" style="margin-top:16px;">
+                <button type="button" class="btn-ghost" onclick="document.getElementById('modal-convert-task').close()">Cancel</button>
+                <button type="submit" class="btn-primary">Create Ops Task</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTeamsChannelId = 1;
+
+function loadTeamsChannel(id, name, teamName) {
+    currentTeamsChannelId = id;
+    document.getElementById('teams-channel-title').innerHTML = `<i data-lucide="hash" style="color:#6264a7;"></i> #${name} (${teamName})`;
+    document.getElementById('teams-channel-desc').textContent = `Official ${teamName} discussion channel.`;
+    window.refreshIcons();
+}
+
+function initiateDirectTeamsChat(userId, userName) {
+    window.location.href = `/chat?user=${userId}`;
+}
+
+async function sendTeamsPost(e) {
+    e.preventDefault();
+    const input = document.getElementById('teams-post-input');
+    const val = input.value.trim();
+    if (!val) return;
+
+    const feed = document.getElementById('teams-chat-feed');
+    const postHtml = `
+        <div class="teams-post-card">
+            <div class="teams-post-header">
+                <div class="teams-post-user">
+                    <div class="teams-user-avatar">{{ current_user.full_name[:2]|upper }}</div>
+                    <div>
+                        <div style="font-weight:700; font-size:0.9rem; color:var(--text-primary);">{{ current_user.full_name }}</div>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">Just now</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-ghost" onclick="convertTeamsPostToTask(99)"><i data-lucide="check-square" style="width:14px;height:14px; color:var(--emerald);"></i> Task</button>
+            </div>
+            <div style="font-size:0.92rem; line-height:1.6; color:var(--text-primary);">${val}</div>
+            <div class="teams-reaction-bar">
+                <span class="teams-reaction-pill" onclick="reactPost(99, '👍')">👍 1</span>
+            </div>
+        </div>
+    `;
+    feed.insertAdjacentHTML('beforeend', postHtml);
+    input.value = '';
+    feed.scrollTop = feed.scrollHeight;
+    window.refreshIcons();
+
+    try {
+        await fetch(`/api/channels/${currentTeamsChannelId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: val })
+        });
+    } catch(err) { console.error(err); }
+}
+
+function convertTeamsPostToTask(msgId) {
+    document.getElementById('convert-msg-id').value = msgId;
+    document.getElementById('modal-convert-task').showModal();
+}
+
+async function submitTeamsPostToTask(e) {
+    e.preventDefault();
+    const msgId = document.getElementById('convert-msg-id').value;
+    const projId = document.getElementById('convert-project-id').value;
+
+    try {
+        const res = await fetch(`/api/messages/${msgId}/convert-to-task`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: projId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('modal-convert-task').close();
+            alert('Ops Task successfully created from Teams post!');
+        }
+    } catch(err) { console.error(err); }
+}
+
+function reactPost(msgId, emoji) {
+    fetch(`/api/messages/${msgId}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji: emoji })
+    });
+}
+</script>
+{% endblock %}

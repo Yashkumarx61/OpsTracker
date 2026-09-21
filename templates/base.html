@@ -29,7 +29,7 @@
         <div class="nav-inner">
             <div class="nav-row">
 
-                <!-- Left: Logo & Clock -->
+                <!-- Left: Logo, Clock & Module Links -->
                 <div class="nav-left">
                     <!-- Logo (Far Left) -->
                     <a href="{{ url_for('dashboard') }}" class="nav-logo">
@@ -47,21 +47,51 @@
                             <span id="clock-date" class="clock-date">Loading...</span>
                         </div>
                     </div>
+
+                    <!-- Header Module Navigation -->
+                    <div class="header-nav-links">
+                        <a href="{{ url_for('dashboard') }}" class="header-nav-link {% if request.endpoint in ('dashboard', 'admin_dashboard', 'employee_dashboard') %}active{% endif %}" title="Dashboard Workspace">
+                            <i data-lucide="layout-grid" style="width:16px;height:16px;"></i>
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="{{ url_for('ops_channels') }}" class="header-nav-link {% if request.endpoint == 'ops_channels' %}active{% endif %}" title="OpsChannels">
+                            <i data-lucide="message-square" style="width:16px;height:16px;"></i>
+                            <span>Channels</span>
+                        </a>
+                        <a href="{{ url_for('ops_mail') }}" class="header-nav-link {% if request.endpoint == 'ops_mail' %}active{% endif %}" title="OpsMail">
+                            <i data-lucide="mail" style="width:16px;height:16px;"></i>
+                            <span>Mail</span>
+                        </a>
+                        <a href="{{ url_for('ops_meet') }}" class="header-nav-link {% if request.endpoint == 'ops_meet' %}active{% endif %}" title="OpsMeet">
+                            <i data-lucide="video" style="width:16px;height:16px;"></i>
+                            <span>Meet</span>
+                        </a>
+                    </div>
                 </div>
 
-                <!-- Right: Nav actions, profile, theme toggle, role, user, logout -->
-                <div class="nav-right">
-                    <!-- Chat Link -->
-                    <a href="{{ url_for('chat_hub') }}" class="nav-chat-btn" title="Live Chat Hub">
-                        <i data-lucide="message-square" style="width:16px;height:16px;"></i>
-                        <span class="nav-chat-text">Chat</span>
-                    </a>
-
-                    <!-- Profile Link -->
-                    <a href="{{ url_for('profile') }}" class="nav-chat-btn" title="My Profile">
-                        <i data-lucide="user-cog" style="width:16px;height:16px;"></i>
-                        <span class="nav-chat-text">Profile</span>
-                    </a>
+                <!-- Right: Quick Action, Notifs, Role & User Avatar Trigger -->
+                <div class="nav-right" style="gap: 12px;">
+                    <!-- Floating Quick Action Split Button -->
+                    <div class="quick-action-wrapper">
+                        <button type="button" class="btn-quick-action" id="btn-quick-action" onclick="toggleQuickMenu(event)">
+                            <i data-lucide="plus-circle" style="width:16px;height:16px;"></i>
+                            <span>Quick Action</span>
+                            <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                        </button>
+                        <div class="quick-action-menu hidden" id="quick-action-menu">
+                            <button type="button" class="quick-menu-item" onclick="openQuickModal('task')">
+                                <i data-lucide="check-square" style="width:16px;height:16px;color:var(--emerald);"></i> Dispatch Task
+                            </button>
+                            <button type="button" class="quick-menu-item" onclick="openQuickModal('project')">
+                                <i data-lucide="folder-plus" style="width:16px;height:16px;color:var(--indigo);"></i> Create Project
+                            </button>
+                            {% if current_user.is_admin %}
+                            <button type="button" class="quick-menu-item" onclick="openQuickModal('team')">
+                                <i data-lucide="users" style="width:16px;height:16px;color:var(--amber);"></i> Create Team
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
 
                     <!-- Notification Bell -->
                     <div class="notif-wrapper" id="notif-wrapper">
@@ -80,78 +110,23 @@
                         </div>
                     </div>
 
-                    <!-- Role badge -->
+                    <!-- Role Badge -->
                     <span class="role-badge {% if current_user.is_admin %}role-admin{% else %}role-employee{% endif %}">
                         {{ current_user.role }}
                     </span>
 
-                    <!-- Availability Status Dropdown -->
-                    <div class="user-status-wrapper" id="user-status-wrapper">
-                        <button type="button" class="status-dropdown-btn" id="status-dropdown-btn" aria-expanded="false" title="Change availability status">
-                            <span class="status-dot status-dot-{{ current_user.current_status|lower|replace(' ', '-') }}" id="nav-status-dot"></span>
-                            <span class="status-btn-text" id="nav-status-label">{{ current_user.current_status }}</span>
-                            <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
-                        </button>
-                        <div class="status-dropdown-menu hidden" id="status-dropdown-menu">
-                            <button type="button" class="status-menu-item {% if current_user.current_status == 'Available' %}active{% endif %}" data-status="Available">
-                                <span class="status-dot status-dot-available"></span>
-                                <span>Available</span>
-                            </button>
-                            <button type="button" class="status-menu-item {% if current_user.current_status == 'On Call' %}active{% endif %}" data-status="On Call">
-                                <span class="status-dot status-dot-on-call"></span>
-                                <span>On Call</span>
-                            </button>
-                            <button type="button" class="status-menu-item {% if current_user.current_status == 'On Leave' %}active{% endif %}" data-status="On Leave">
-                                <span class="status-dot status-dot-on-leave"></span>
-                                <span>On Leave</span>
-                            </button>
-                            <button type="button" class="status-menu-item {% if current_user.current_status == 'Offline' %}active{% endif %}" data-status="Offline">
-                                <span class="status-dot status-dot-offline"></span>
-                                <span>Offline</span>
-                            </button>
+                    <!-- Consolidated User Avatar / Settings Menu Trigger -->
+                    <div class="user-avatar-trigger" id="user-avatar-trigger" title="Settings & Profile Menu" onclick="toggleSettingsDrawer()">
+                        <div class="avatar-circle">
+                            {{ current_user.full_name[:2]|upper }}
                         </div>
+                        <span class="status-indicator status-dot-{{ current_user.current_status|lower|replace(' ', '-') }}" id="nav-status-dot"></span>
                     </div>
-
-                    <!-- User name -->
-                    <span class="user-name">
-                        {{ current_user.full_name }}
-                    </span>
-                    <span class="emp-id-badge" title="Employee ID">{{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</span>
-
-                    <!-- Logout -->
-                    <a href="{{ url_for('logout') }}" class="btn-logout">
-                        <i data-lucide="log-out" style="width:16px;height:16px;"></i>
-                        Logout
-                    </a>
                 </div>
             </div>
         </div>
     </nav>
-    {% else %}
-    <!-- Unauthenticated: minimal top bar with clock and theme toggle -->
-    <div class="unauth-bar">
-        <div class="nav-inner">
-            <div class="unauth-row">
-                <div id="live-clock-unauth" class="live-clock">
-                    <svg class="clock-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div class="clock-text">
-                        <span id="clock-time-unauth" class="clock-time">--:--:-- --</span>
-                        <span id="clock-date-unauth" class="clock-date">Loading...</span>
-                    </div>
-                </div>
-                <button id="theme-toggle-unauth" class="theme-toggle" title="Toggle theme" aria-label="Toggle light/dark theme">
-                    <svg id="theme-icon-sun-unauth" class="theme-icon" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-                    </svg>
-                    <svg id="theme-icon-moon-unauth" class="theme-icon hidden" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </div>
+
     {% endif %}
 
     <!-- ===== FLASH MESSAGES ===== -->
@@ -193,6 +168,269 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if current_user.is_authenticated %}
+    <!-- ===== SETTINGS DRAWER OVERLAY & FLYOUT ===== -->
+    <div class="settings-drawer-backdrop hidden" id="settings-drawer-backdrop" onclick="toggleSettingsDrawer(false)"></div>
+    <aside class="settings-drawer hidden" id="settings-drawer" aria-label="Settings Drawer">
+        <div class="drawer-header">
+            <div class="drawer-user-info">
+                <div class="drawer-avatar">{{ current_user.full_name[:2]|upper }}</div>
+                <div>
+                    <div class="drawer-user-name">{{ current_user.full_name }}</div>
+                    <div class="drawer-user-sub">{{ current_user.role }} &bull; {{ current_user.employee_id or ('EMP-' ~ current_user.id) }}</div>
+                </div>
+            </div>
+            <button type="button" class="drawer-close-btn" onclick="toggleSettingsDrawer(false)">&times;</button>
+        </div>
+
+        <!-- Drawer Nav Tabs -->
+        <div class="drawer-tabs">
+            <button type="button" class="drawer-tab-btn active" onclick="switchDrawerTab('tab-general', this)">
+                <i data-lucide="sliders" style="width:14px;height:14px;"></i> General
+            </button>
+            <button type="button" class="drawer-tab-btn" onclick="switchDrawerTab('tab-profile', this)">
+                <i data-lucide="user" style="width:14px;height:14px;"></i> Profile
+            </button>
+            <button type="button" class="drawer-tab-btn" onclick="switchDrawerTab('tab-notifs', this)">
+                <i data-lucide="bell" style="width:14px;height:14px;"></i> Notifs
+            </button>
+            <button type="button" class="drawer-tab-btn" onclick="switchDrawerTab('tab-security', this)">
+                <i data-lucide="shield" style="width:14px;height:14px;"></i> Security
+            </button>
+        </div>
+
+        <div class="drawer-content">
+            <!-- TAB 1: GENERAL -->
+            <div class="drawer-tab-pane active" id="tab-general">
+                <div class="setting-group">
+                    <label class="setting-label">Appearance & Theme</label>
+                    <div class="theme-option-grid">
+                        <button type="button" class="theme-opt-btn" onclick="setAppTheme('light')" id="theme-btn-light">
+                            <i data-lucide="sun" style="width:14px;height:14px;"></i> Light
+                        </button>
+                        <button type="button" class="theme-opt-btn" onclick="setAppTheme('dark')" id="theme-btn-dark">
+                            <i data-lucide="moon" style="width:14px;height:14px;"></i> Dark
+                        </button>
+                        <button type="button" class="theme-opt-btn" onclick="setAppTheme('system')" id="theme-btn-system">
+                            <i data-lucide="laptop" style="width:14px;height:14px;"></i> Auto
+                        </button>
+                    </div>
+                </div>
+                <div class="setting-group" style="margin-top:12px;">
+                    <label class="setting-label">Availability Status</label>
+                    <select id="drawer-status-select" class="form-input" onchange="updateAvailabilityStatus(this.value)">
+                        <option value="Available" {% if current_user.current_status == 'Available' %}selected{% endif %}>🟢 Available</option>
+                        <option value="In a Call" {% if current_user.current_status == 'In a Call' %}selected{% endif %}>📞 In a Call</option>
+                        <option value="Busy" {% if current_user.current_status == 'Busy' %}selected{% endif %}>🔴 Busy</option>
+                        <option value="Away" {% if current_user.current_status == 'Away' %}selected{% endif %}>🟡 Away</option>
+                        <option value="Do Not Disturb" {% if current_user.current_status == 'Do Not Disturb' %}selected{% endif %}>⛔ Do Not Disturb</option>
+                        <option value="On Call" {% if current_user.current_status == 'On Call' %}selected{% endif %}>📞 On Call</option>
+                        <option value="On Leave" {% if current_user.current_status == 'On Leave' %}selected{% endif %}>🌴 On Leave</option>
+                        <option value="Offline" {% if current_user.current_status == 'Offline' %}selected{% endif %}>⚪ Offline</option>
+                    </select>
+                </div>
+                <div class="setting-group" style="margin-top:12px;">
+                    <label class="setting-label">Timezone</label>
+                    <select class="form-input">
+                        <option selected>Asia/Kolkata (IST +05:30)</option>
+                        <option>UTC (Coordinated Universal Time)</option>
+                        <option>America/New_York (EST -05:00)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- TAB 2: PROFILE & CREDENTIALS -->
+            <div class="drawer-tab-pane" id="tab-profile">
+                <form id="drawer-profile-form" onsubmit="saveDrawerProfile(event)">
+                    <div class="setting-group">
+                        <label class="setting-label">Full Name</label>
+                        <input type="text" class="form-input" id="drawer-name" value="{{ current_user.full_name }}" required>
+                    </div>
+                    <div class="setting-group" style="margin-top:10px;">
+                        <label class="setting-label">Job Title</label>
+                        <input type="text" class="form-input" id="drawer-title" value="{{ current_user.job_title }}">
+                    </div>
+                    <div class="setting-group" style="margin-top:10px;">
+                        <label class="setting-label">Department</label>
+                        <input type="text" class="form-input" id="drawer-dept" value="{{ current_user.department }}">
+                    </div>
+                    <div class="setting-group" style="margin-top:10px;">
+                        <label class="setting-label">Phone Number</label>
+                        <input type="text" class="form-input" id="drawer-phone" value="{{ current_user.phone }}">
+                    </div>
+                    <button type="submit" class="btn-primary" style="width:100%; margin-top:16px;">Save Changes</button>
+                </form>
+            </div>
+
+            <!-- TAB 3: NOTIFICATIONS -->
+            <div class="drawer-tab-pane" id="tab-notifs">
+                <div class="setting-toggle-row">
+                    <div>
+                        <strong>Email Notifications</strong>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">Task assignments & direct emails</div>
+                    </div>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="setting-toggle-row">
+                    <div>
+                        <strong>In-App Desktop Push</strong>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">OpsChannels & OpsMail alerts</div>
+                    </div>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="setting-toggle-row">
+                    <div>
+                        <strong>OpsMeet Reminders</strong>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">5-min room join alerts</div>
+                    </div>
+                    <input type="checkbox" checked>
+                </div>
+                <div class="setting-toggle-row">
+                    <div>
+                        <strong>OpsCall Audio Ringtones</strong>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">Synthesized ringtone for incoming calls</div>
+                    </div>
+                    <input type="checkbox" checked>
+                </div>
+            </div>
+
+            <!-- TAB 4: SECURITY -->
+            <div class="drawer-tab-pane" id="tab-security">
+                <div class="setting-group">
+                    <label class="setting-label">Active Session</label>
+                    <div class="session-card">
+                        <div style="font-weight:700; font-size:0.85rem;">Chrome Desktop &bull; Active Now</div>
+                        <div style="font-size:0.75rem; color:var(--text-tertiary);">Session Secured (HTTP-Only Cookie)</div>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-danger-block">
+                    <i data-lucide="log-out" style="width:16px;height:16px;"></i> Sign Out of OpsTracker
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== GLOBAL QUICK ACTION MODALS ===== -->
+    <dialog id="modal-quick-task" class="custom-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i data-lucide="check-square" style="color:var(--emerald);"></i> Dispatch Quick Task</h3>
+                <button type="button" class="modal-close-btn" onclick="closeQuickModal('task')">&times;</button>
+            </div>
+            <form id="form-quick-task" onsubmit="submitQuickTask(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label class="label">Task Title</label>
+                    <input type="text" name="title" class="form-input" placeholder="e.g. Upgrade Database Schema" required>
+                </div>
+                <div class="form-group" style="margin-top:10px;">
+                    <label class="label">Target Project</label>
+                    <select name="project_id" class="form-input" required>
+                        {% if projects %}
+                            {% for p in projects %}
+                            <option value="{{ p.id }}">{{ p.title }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="1">General Project</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <div style="flex:1;">
+                        <label class="label">Priority</label>
+                        <select name="priority" class="form-input">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical / Blocker">Critical / Blocker</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label class="label">Category</label>
+                        <select name="category_tag" class="form-input">
+                            <option value="Ops" selected>Ops</option>
+                            <option value="Bug">Bug</option>
+                            <option value="Feature">Feature</option>
+                            <option value="Security">Security</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" onclick="closeQuickModal('task')">Cancel</button>
+                    <button type="submit" class="btn-primary">Dispatch Task</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog id="modal-quick-project" class="custom-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i data-lucide="folder-plus" style="color:var(--indigo);"></i> Create Project</h3>
+                <button type="button" class="modal-close-btn" onclick="closeQuickModal('project')">&times;</button>
+            </div>
+            {% if not current_user.is_admin %}
+            <div style="background:var(--amber-bg); color:var(--amber-text); padding:10px 14px; border-radius:8px; font-size:0.82rem; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <i data-lucide="lock" style="width:16px;height:16px;"></i> Admin Access Required: Only System Administrators can create projects and assign employees.
+            </div>
+            {% endif %}
+            <form id="form-quick-project" onsubmit="submitQuickProject(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label class="label">Project Title</label>
+                    <input type="text" name="title" class="form-input" placeholder="e.g. Infrastructure Pipeline" required {% if not current_user.is_admin %}disabled{% endif %}>
+                </div>
+                <div class="form-group" style="margin-top:10px;">
+                    <label class="label">Assign Team</label>
+                    <select name="team_id" class="form-input" required {% if not current_user.is_admin %}disabled{% endif %}>
+                        {% if teams %}
+                            {% for t in teams %}
+                            <option value="{{ t.id }}">{{ t.team_name }}</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="1">DevOps Team</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" onclick="closeQuickModal('project')">Cancel</button>
+                    <button type="submit" class="btn-primary" {% if not current_user.is_admin %}disabled style="opacity:0.5; cursor:not-allowed;"{% endif %}>Create Project</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog id="modal-quick-team" class="custom-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i data-lucide="users" style="color:var(--amber);"></i> Create Team</h3>
+                <button type="button" class="modal-close-btn" onclick="closeQuickModal('team')">&times;</button>
+            </div>
+            {% if not current_user.is_admin %}
+            <div style="background:var(--amber-bg); color:var(--amber-text); padding:10px 14px; border-radius:8px; font-size:0.82rem; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <i data-lucide="lock" style="width:16px;height:16px;"></i> Admin Access Required: Only System Administrators can create new teams.
+            </div>
+            {% endif %}
+            <form id="form-quick-team" onsubmit="submitQuickTeam(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label class="label">Team Name</label>
+                    <input type="text" name="team_name" class="form-input" placeholder="e.g. SRE & Cloud Engineering" required {% if not current_user.is_admin %}disabled{% endif %}>
+                </div>
+                <div class="form-group" style="margin-top:10px;">
+                    <label class="label">Description</label>
+                    <textarea name="description" class="form-input" rows="3" placeholder="Team scope & charter..." {% if not current_user.is_admin %}disabled{% endif %}></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" onclick="closeQuickModal('team')">Cancel</button>
+                    <button type="submit" class="btn-primary" {% if not current_user.is_admin %}disabled style="opacity:0.5; cursor:not-allowed;"{% endif %}>Create Team</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    {% endif %}
+
     <!-- ===== SCRIPTS ===== -->
     <script>
         // ── Live Clock ──
@@ -203,13 +441,11 @@
             const timeStr = now.toLocaleTimeString('en-US', timeOpts);
             const dateStr = now.toLocaleDateString('en-US', dateOpts);
 
-            // Authenticated navbar
             const ct = document.getElementById('clock-time');
             const cd = document.getElementById('clock-date');
             if (ct) ct.textContent = timeStr;
             if (cd) cd.textContent = dateStr;
 
-            // Unauthenticated bar
             const ctu = document.getElementById('clock-time-unauth');
             const cdu = document.getElementById('clock-date-unauth');
             if (ctu) ctu.textContent = timeStr;
@@ -218,90 +454,155 @@
         updateClock();
         setInterval(updateClock, 1000);
 
-        // ── Theme Toggle ──
-        (function() {
+        // ── Theme Manager ──
+        function setAppTheme(theme) {
             const root = document.documentElement;
-            const saved = localStorage.getItem('ops-theme') || 'light';
-            root.setAttribute('data-theme', saved);
-            updateToggleIcons(saved);
-
-            document.querySelectorAll('#theme-toggle, #theme-toggle-unauth').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const current = root.getAttribute('data-theme');
-                    const next = current === 'light' ? 'dark' : 'light';
-                    root.setAttribute('data-theme', next);
-                    localStorage.setItem('ops-theme', next);
-                    updateToggleIcons(next);
-                });
-            });
-
-            function updateToggleIcons(theme) {
-                // Main navbar icons
-                const sun = document.getElementById('theme-icon-sun');
-                const moon = document.getElementById('theme-icon-moon');
-                if (sun && moon) {
-                    sun.classList.toggle('hidden', theme === 'dark');
-                    moon.classList.toggle('hidden', theme === 'light');
-                }
-                // Unauth bar icons
-                const sunU = document.getElementById('theme-icon-sun-unauth');
-                const moonU = document.getElementById('theme-icon-moon-unauth');
-                if (sunU && moonU) {
-                    sunU.classList.toggle('hidden', theme === 'dark');
-                    moonU.classList.toggle('hidden', theme === 'light');
-                }
+            let targetTheme = theme;
+            if (theme === 'system') {
+                targetTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             }
-        })();
+            root.setAttribute('data-theme', targetTheme);
+            localStorage.setItem('ops-theme', theme);
+            
+            document.querySelectorAll('.theme-opt-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById('theme-btn-' + theme);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
 
-        // ── Availability Status Dropdown ──
         (function() {
-            const btn = document.getElementById('status-dropdown-btn');
-            const menu = document.getElementById('status-dropdown-menu');
-            if (!btn || !menu) return;
-
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = menu.classList.toggle('hidden');
-                btn.setAttribute('aria-expanded', !isHidden);
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!menu.contains(e.target) && !btn.contains(e.target)) {
-                    menu.classList.add('hidden');
-                    btn.setAttribute('aria-expanded', 'false');
-                }
-            });
-
-            menu.querySelectorAll('.status-menu-item').forEach(item => {
-                item.addEventListener('click', async () => {
-                    const status = item.dataset.status;
-                    menu.classList.add('hidden');
-                    btn.setAttribute('aria-expanded', 'false');
-
-                    try {
-                        const res = await fetch('/api/user/status', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ status: status })
-                        });
-                        const data = await res.json();
-                        if (res.ok && data.ok) {
-                            const label = document.getElementById('nav-status-label');
-                            const dot = document.getElementById('nav-status-dot');
-                            if (label) label.textContent = data.current_status;
-                            if (dot) {
-                                dot.className = 'status-dot status-dot-' + data.current_status.toLowerCase().replace(/\s+/g, '-');
-                            }
-                            menu.querySelectorAll('.status-menu-item').forEach(m => {
-                                m.classList.toggle('active', m.dataset.status === data.current_status);
-                            });
-                        }
-                    } catch (err) {
-                        console.error('Failed to update status:', err);
-                    }
-                });
-            });
+            const saved = localStorage.getItem('ops-theme') || 'light';
+            setAppTheme(saved);
         })();
+
+        // ── Quick Action Menu & Modals ──
+        function toggleQuickMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('quick-action-menu');
+            if (menu) menu.classList.toggle('hidden');
+        }
+        document.addEventListener('click', () => {
+            const menu = document.getElementById('quick-action-menu');
+            if (menu) menu.classList.add('hidden');
+        });
+
+        function openQuickModal(type) {
+            const menu = document.getElementById('quick-action-menu');
+            if (menu) menu.classList.add('hidden');
+            const dlg = document.getElementById('modal-quick-' + type);
+            if (dlg) dlg.showModal();
+        }
+
+        function closeQuickModal(type) {
+            const dlg = document.getElementById('modal-quick-' + type);
+            if (dlg) dlg.close();
+        }
+
+        async function submitQuickTask(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            try {
+                const res = await fetch('/api/quick/task', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    closeQuickModal('task');
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to dispatch task');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function submitQuickProject(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            try {
+                const res = await fetch('/api/quick/project', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    closeQuickModal('project');
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to create project');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function submitQuickTeam(e) {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            try {
+                const res = await fetch('/api/quick/team', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    closeQuickModal('team');
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Failed to create team');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // ── Settings Drawer & Tab Switcher ──
+        function toggleSettingsDrawer(show) {
+            const drawer = document.getElementById('settings-drawer');
+            const backdrop = document.getElementById('settings-drawer-backdrop');
+            if (!drawer || !backdrop) return;
+            const isShown = show !== undefined ? show : drawer.classList.contains('hidden');
+            drawer.classList.toggle('hidden', !isShown);
+            backdrop.classList.toggle('hidden', !isShown);
+        }
+
+        function switchDrawerTab(tabId, btn) {
+            document.querySelectorAll('.drawer-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.drawer-tab-pane').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const pane = document.getElementById(tabId);
+            if (pane) pane.classList.add('active');
+        }
+
+        async function updateAvailabilityStatus(status) {
+            try {
+                const res = await fetch('/api/user/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const dot = document.getElementById('nav-status-dot');
+                    if (dot) dot.className = 'status-indicator status-dot-' + status.toLowerCase().replace(/\s+/g, '-');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function saveDrawerProfile(e) {
+            e.preventDefault();
+            const name = document.getElementById('drawer-name').value;
+            const title = document.getElementById('drawer-title').value;
+            const dept = document.getElementById('drawer-dept').value;
+            const phone = document.getElementById('drawer-phone').value;
+
+            try {
+                const res = await fetch('/api/user/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ full_name: name, job_title: title, department: dept, phone: phone })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Profile updated successfully!');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // ── OpsCall Voice Calling & WebRTC Engine ──
+        let activeCallId = null;
+        let callTimerInterval = null;
+        let callSeconds = 0;
+        let localAudioStream = null;
+        let isCallMicMuted = false;
+        let synthAudioCtx = null;
+        let ringtoneTimer = null;
 
         // ── Notifications Center ──
         (function() {
@@ -332,9 +633,7 @@
                         await fetch('/api/notifications/read-all', { method: 'POST' });
                         if (badge) badge.classList.add('hidden');
                         fetchNotifications();
-                    } catch (e) {
-                        console.error('Failed to mark read', e);
-                    }
+                    } catch (e) { console.error('Failed to mark read', e); }
                 });
             }
 
@@ -344,7 +643,6 @@
                     const data = await res.json();
                     if (!res.ok) return;
 
-                    // Update badge
                     if (badge) {
                         if (data.unread_count > 0) {
                             badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
@@ -354,7 +652,6 @@
                         }
                     }
 
-                    // Render list
                     if (list) {
                         if (!data.notifications || data.notifications.length === 0) {
                             list.innerHTML = '<div class="notif-empty">No notifications</div>';
@@ -368,21 +665,16 @@
                             `).join('');
                         }
                     }
-                } catch (e) {
-                    console.error('Error fetching notifications:', e);
-                }
+                } catch (e) { console.error(e); }
             }
 
-            // Initial fetch & poll every 15s
             fetchNotifications();
             setInterval(fetchNotifications, 15000);
         })();
 
-        // ── Auto-dismiss flash messages & Lucide icon init ──
+        // ── Auto-dismiss flash messages & Lucide icons ──
         document.addEventListener('DOMContentLoaded', () => {
-            if (window.lucide) {
-                lucide.createIcons();
-            }
+            if (window.lucide) lucide.createIcons();
             document.querySelectorAll('.flash-msg').forEach(el => {
                 setTimeout(() => {
                     el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}OpsMeet — Video Workspace{% endblock %}
+
+{% block content %}
+<div class="meet-wrapper">
+    <!-- OpsMeet Top Bar -->
+    <div class="meet-top-bar">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <i data-lucide="video" style="color:#1a73e8; width:22px; height:22px;"></i>
+            <span style="font-weight:700; font-size:1.05rem;">OpsMeet Sync</span>
+            <div class="meet-room-code-pill">
+                <span>{{ room_code }}</span>
+                <i data-lucide="copy" style="width:14px;height:14px; cursor:pointer;" title="Copy Room Link" onclick="navigator.clipboard.writeText(window.location.href); alert('Meeting link copied!');"></i>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div style="font-size:0.85rem; color:#9aa0a6;" id="meet-clock">12:00 PM</div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem; background:rgba(255,255,255,0.1); padding:4px 10px; border-radius:12px;">
+                <i data-lucide="users" style="width:14px;height:14px;"></i> 2 Participants
+            </div>
+        </div>
+    </div>
+
+    <!-- Google Meet Main Stage & Grid -->
+    <div class="meet-stage">
+        <div style="display:flex; flex:1; height:100%; gap:20px;">
+            <main class="meet-grid" id="meet-video-grid">
+                <!-- Local User Video Card -->
+                <div class="meet-tile speaking" id="local-tile">
+                    <video id="local-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; border-radius:12px;"></video>
+                    <div id="local-avatar-fallback" class="meet-tile-avatar" style="display:none; width:80px; height:80px; border-radius:50%; font-size:2rem; font-weight:800;">
+                        {{ current_user.full_name[:2]|upper }}
+                    </div>
+                    <div class="meet-name-tag">
+                        <i data-lucide="mic" id="tag-mic-icon" style="width:12px;height:12px; color:#34a853;"></i>
+                        <span>{{ current_user.full_name }} (You)</span>
+                    </div>
+                </div>
+
+                <!-- Remote Participant Video Card -->
+                <div class="meet-tile" id="remote-tile">
+                    <div class="meet-tile-avatar">SA</div>
+                    <div class="meet-name-tag">
+                        <i data-lucide="mic-off" style="width:12px;height:12px; color:#ea4335;"></i>
+                        <span>System Admin</span>
+                    </div>
+                </div>
+            </main>
+
+            <!-- In-Call Side Panel Drawer (Meeting Participants & Add Member) -->
+            <aside class="meet-side-panel" style="width:340px; background:#292a2d; color:#ffffff; border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:12px;">
+                    <h3 style="margin:0; font-size:0.95rem; font-weight:700; color:#ffffff; display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="user-plus" style="color:#1a73e8;"></i> Add Member to Meeting
+                    </h3>
+                </div>
+
+                <!-- Add Member Form -->
+                <form onsubmit="addMemberToMeeting(event)" style="display:flex; flex-direction:column; gap:10px;">
+                    <div>
+                        <label style="font-size:0.75rem; color:#9aa0a6;">Select Team Member</label>
+                        <select id="meet-add-user" class="form-input" required style="background:#3c4043; color:#ffffff; border:none; margin-top:4px;">
+                            <option value="">-- Select Member to Invite --</option>
+                            {% for u in users %}
+                            {% if u.id != current_user.id %}
+                            <option value="{{ u.id }}" data-name="{{ u.full_name }}" data-role="{{ u.role }}">{{ u.full_name }} ({{ u.role }}) — {{ u.department or 'General' }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem; color:#9aa0a6;">Meeting Role</label>
+                        <select id="meet-add-role" class="form-input" style="background:#3c4043; color:#ffffff; border:none; margin-top:4px;">
+                            <option value="Participant" selected>Participant</option>
+                            <option value="Co-Host">Co-Host</option>
+                            <option value="Presenter">Presenter</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary" style="background:#1a73e8; margin-top:6px; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                        <i data-lucide="user-plus" style="width:14px;height:14px;"></i> + Add Member to Call
+                    </button>
+                </form>
+
+                <!-- Active Participants List -->
+                <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; margin-top:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:0.8rem; font-weight:700; color:#9aa0a6;">Active Participants</span>
+                        <span style="background:#34a853; color:#ffffff; font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:700;" id="participant-count-badge">2 In Call</span>
+                    </div>
+                    <div id="meet-participant-list" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;">
+                        <div class="participant-card" style="background:#3c4043; padding:8px 12px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; font-size:0.8rem;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div style="width:28px; height:28px; border-radius:50%; background:#1a73e8; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:0.75rem;">{{ current_user.full_name[:2]|upper }}</div>
+                                <div>
+                                    <div style="font-weight:700; color:#ffffff;">{{ current_user.full_name }} (You)</div>
+                                    <div style="font-size:0.7rem; color:#9aa0a6;">Host &bull; {{ current_user.role }}</div>
+                                </div>
+                            </div>
+                            <span style="color:#34a853; font-size:0.72rem; font-weight:700;">🟢 Connected</span>
+                        </div>
+
+                        <div class="participant-card" style="background:#3c4043; padding:8px 12px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; font-size:0.8rem;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div style="width:28px; height:28px; border-radius:50%; background:var(--sky); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:0.75rem;">SA</div>
+                                <div>
+                                    <div style="font-weight:700; color:#ffffff;">System Admin</div>
+                                    <div style="font-size:0.7rem; color:#9aa0a6;">Participant</div>
+                                </div>
+                            </div>
+                            <span style="color:#34a853; font-size:0.72rem; font-weight:700;">🟢 Joined</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Google Meet Floating Bottom Control Dock -->
+    <div class="meet-dock">
+        <button type="button" class="meet-dock-btn" id="btn-toggle-mic" title="Mute/Unmute Mic" onclick="toggleMic()">
+            <i data-lucide="mic" id="icon-mic"></i>
+        </button>
+        <button type="button" class="meet-dock-btn" id="btn-toggle-cam" title="Camera On/Off" onclick="toggleCam()">
+            <i data-lucide="video" id="icon-cam"></i>
+        </button>
+        <button type="button" class="meet-dock-btn" id="btn-screen-share" title="Share Screen" onclick="toggleScreenShare()">
+            <i data-lucide="monitor"></i>
+        </button>
+        <button type="button" class="meet-dock-btn" id="btn-raise-hand" title="Raise Hand" onclick="raiseHand()">
+            <i data-lucide="hand"></i>
+        </button>
+        <button type="button" class="meet-dock-btn" id="btn-reactions" title="Send Emoji Reaction" onclick="alert('😊 👍 ❤️ 🚀')">
+            <i data-lucide="smile"></i>
+        </button>
+        <a href="{{ url_for('dashboard') }}" class="meet-dock-btn meet-end-btn" title="Leave Call">
+            <i data-lucide="phone-off"></i>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let localStream = null;
+let isMicOn = true;
+let isCamOn = true;
+let totalParticipants = 2;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const videoEl = document.getElementById('local-video');
+    const fallbackAvatar = document.getElementById('local-avatar-fallback');
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (videoEl) videoEl.srcObject = localStream;
+    } catch (err) {
+        console.warn('Camera/Mic hardware stream unavailable — displaying fallback avatar tile:', err);
+        if (videoEl) videoEl.style.display = 'none';
+        if (fallbackAvatar) fallbackAvatar.style.display = 'flex';
+    }
+
+    setInterval(() => {
+        const now = new Date();
+        const clockEl = document.getElementById('meet-clock');
+        if (clockEl) clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }, 1000);
+});
+
+function toggleMic() {
+    isMicOn = !isMicOn;
+    if (localStream) {
+        localStream.getAudioTracks().forEach(t => t.enabled = isMicOn);
+    }
+    const btn = document.getElementById('btn-toggle-mic');
+    if (btn) {
+        btn.classList.toggle('muted', !isMicOn);
+        btn.innerHTML = isMicOn ? '<i data-lucide="mic"></i>' : '<i data-lucide="mic-off"></i>';
+    }
+    const tagIcon = document.getElementById('tag-mic-icon');
+    if (tagIcon) {
+        tagIcon.setAttribute('data-lucide', isMicOn ? 'mic' : 'mic-off');
+        tagIcon.style.color = isMicOn ? '#34a853' : '#ea4335';
+    }
+    window.refreshIcons();
+}
+
+function toggleCam() {
+    isCamOn = !isCamOn;
+    if (localStream) {
+        localStream.getVideoTracks().forEach(t => t.enabled = isCamOn);
+    }
+    const btn = document.getElementById('btn-toggle-cam');
+    if (btn) {
+        btn.classList.toggle('muted', !isCamOn);
+        btn.innerHTML = isCamOn ? '<i data-lucide="video"></i>' : '<i data-lucide="video-off"></i>';
+    }
+    const videoEl = document.getElementById('local-video');
+    const fallbackAvatar = document.getElementById('local-avatar-fallback');
+    if (isCamOn && localStream) {
+        if (videoEl) videoEl.style.display = 'block';
+        if (fallbackAvatar) fallbackAvatar.style.display = 'none';
+    } else {
+        if (videoEl) videoEl.style.display = 'none';
+        if (fallbackAvatar) fallbackAvatar.style.display = 'flex';
+    }
+    window.refreshIcons();
+}
+
+async function toggleScreenShare() {
+    try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const videoEl = document.getElementById('local-video');
+        if (videoEl) videoEl.srcObject = screenStream;
+    } catch (err) { console.error('Screen share error:', err); }
+}
+
+function raiseHand() {
+    alert('✋ Hand raised in OpsMeet room!');
+}
+
+function addMemberToMeeting(e) {
+    e.preventDefault();
+    const select = document.getElementById('meet-add-user');
+    const opt = select.options[select.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const name = opt.getAttribute('data-name');
+    const role = opt.getAttribute('data-role');
+    const meetingRole = document.getElementById('meet-add-role').value;
+    const initials = name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+
+    // 1. Add participant to side panel list
+    const list = document.getElementById('meet-participant-list');
+    const itemHtml = `
+        <div class="participant-card" style="background:#3c4043; padding:8px 12px; border-radius:8px; display:flex; align-items:center; justify-content:space-between; font-size:0.8rem; border-left:3px solid #1a73e8;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg, #10b981, #0ea5e9); color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:0.75rem;">${initials}</div>
+                <div>
+                    <div style="font-weight:700; color:#ffffff;">${name}</div>
+                    <div style="font-size:0.7rem; color:#9aa0a6;">${meetingRole} &bull; ${role}</div>
+                </div>
+            </div>
+            <span style="color:#34a853; font-size:0.72rem; font-weight:700;">🟢 Joined</span>
+        </div>
+    `;
+    list.insertAdjacentHTML('afterbegin', itemHtml);
+
+    // 2. Add video tile on stage grid
+    const grid = document.getElementById('meet-video-grid');
+    const tileHtml = `
+        <div class="meet-tile" id="tile-${opt.value}">
+            <div class="meet-tile-avatar" style="background:linear-gradient(135deg, #10b981, #0ea5e9);">${initials}</div>
+            <div class="meet-name-tag">
+                <i data-lucide="mic" style="width:12px;height:12px; color:#34a853;"></i>
+                <span>${name} (${meetingRole})</span>
+            </div>
+        </div>
+    `;
+    grid.insertAdjacentHTML('beforeend', tileHtml);
+
+    // 3. Increment counters & refresh icons
+    totalParticipants++;
+    document.getElementById('participant-count-badge').textContent = `${totalParticipants} In Call`;
+    select.value = '';
+    window.refreshIcons();
+    alert(`🎉 ${name} has been added to the meeting!`);
+}
+</script>
+{% endblock %}

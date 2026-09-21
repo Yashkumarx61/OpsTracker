@@ -45,7 +45,7 @@
     <div class="metric-card">
         <div class="metric-info">
             <span class="metric-label">Resolution Velocity</span>
-            <div class="metric-val">{{ metrics.resolution_velocity if metrics else 0 }}%</div>
+            <div class="metric-val">{{ "%.1f"|format(metrics.resolution_velocity) if (metrics and metrics.resolution_velocity is not none) else "0.0" }}%</div>
         </div>
         <div class="metric-icon-box icon-emerald">
             <i data-lucide="trending-up" style="width:24px;height:24px;"></i>
@@ -107,7 +107,7 @@
                 <div>
                     <h3 class="card-title" style="font-size: 1.05rem; margin: 0 0 4px; font-weight: 700;">{{ u.full_name }}</h3>
                     <p class="card-subtitle" style="margin: 0; color: var(--text-secondary); font-size: 0.85rem;">
-                        <strong>Email:</strong> {{ u.email }} &bull; <strong>Emp ID:</strong> {{ u.employee_id or ('EMP-' ~ u.id) }} &bull; <strong>Role:</strong> {{ u.role }} &bull; <strong>Submitted:</strong> {{ u.created_at }}
+                        <strong>Email:</strong> {{ u.email }} &bull; <strong>Emp ID:</strong> {{ u.employee_id if (u.employee_id and not '@' in u.employee_id) else ('EMP-' ~ (1000 + u.id)) }} &bull; <strong>Role:</strong> {{ u.role }} &bull; <strong>Submitted:</strong> {{ u.created_at }}
                     </p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
@@ -166,7 +166,7 @@
                         <div style="font-size: 0.78rem; color: var(--text-tertiary);">{{ emp.email }}</div>
                     </td>
                     <td style="padding: 12px;">
-                        <span class="emp-id-badge">{{ emp.employee_id or ('EMP-' ~ emp.id) }}</span>
+                        <span class="emp-id-badge">{{ emp.employee_id if (emp.employee_id and not '@' in emp.employee_id) else ('EMP-' ~ (1000 + emp.id)) }}</span>
                     </td>
                     <td style="padding: 12px; color: var(--text-secondary);">{{ emp.department or 'Unassigned' }}</td>
                     <td style="padding: 12px; color: var(--text-secondary);">{{ emp.job_title or 'Staff' }}</td>
@@ -189,12 +189,32 @@
                                 </button>
                             </form>
                             {% else %}
-                            <form method="POST" action="{{ url_for('terminate_user', user_id=emp.id) }}" style="display: inline;">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn-ghost" style="color: var(--rose); font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;" onclick="return confirm('Are you sure you want to terminate employee {{ emp.full_name }}? They will be barred from signing in.')">
-                                    <i data-lucide="user-x" style="width:14px;height:14px;"></i> Terminate Employee
-                                </button>
-                            </form>
+                            <button type="button" class="btn-ghost" style="color: var(--rose); font-size: 0.8rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;" onclick="document.getElementById('modal-terminate-{{ emp.id }}').showModal()">
+                                <i data-lucide="user-x" style="width:14px;height:14px;"></i> Terminate Employee
+                            </button>
+
+                            <dialog id="modal-terminate-{{ emp.id }}" class="custom-modal">
+                                <div class="modal-card" style="text-align:left;">
+                                    <div class="modal-header">
+                                        <h3 style="color:var(--rose);"><i data-lucide="alert-triangle"></i> Confirm Employee Offboarding</h3>
+                                        <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-terminate-{{ emp.id }}').close()">&times;</button>
+                                    </div>
+                                    <form method="POST" action="{{ url_for('terminate_user', user_id=emp.id) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:12px;">
+                                            You are about to terminate account for <strong>{{ emp.full_name }}</strong>. This action will immediately revoke platform access.
+                                        </p>
+                                        <div class="form-group" style="display:flex; flex-direction:column; gap:6px;">
+                                            <label class="label" style="font-size:0.8rem;">Re-enter Employee ID to confirm (<strong>{{ emp.employee_id if (emp.employee_id and not '@' in emp.employee_id) else ('EMP-' ~ (1000 + emp.id)) }}</strong>):</label>
+                                            <input type="text" name="target_emp_id" class="input" placeholder="{{ emp.employee_id if (emp.employee_id and not '@' in emp.employee_id) else ('EMP-' ~ (1000 + emp.id)) }}" required style="font-weight:700; text-transform:uppercase;">
+                                        </div>
+                                        <div class="modal-footer" style="margin-top:16px;">
+                                            <button type="button" class="btn-ghost" onclick="document.getElementById('modal-terminate-{{ emp.id }}').close()">Cancel</button>
+                                            <button type="submit" class="btn-primary" style="background:var(--rose); border:none;">Confirm Termination</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </dialog>
                             {% endif %}
                         {% else %}
                             <span class="text-muted" style="font-size: 0.78rem;">(Current User)</span>
@@ -206,6 +226,7 @@
         </table>
     </div>
 </div>
+
 
 <!-- ===== 5. TEAM & PROJECT CREATION BAR ===== -->
 <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 32px;">
