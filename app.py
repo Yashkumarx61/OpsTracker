@@ -49,6 +49,16 @@ login_manager.login_message = "Please log in to access this page."
 login_manager.login_message_category = "warning"
 
 
+@app.after_request
+def set_security_headers(response):
+    """Enforce defense-in-depth security headers on all HTTP responses."""
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 # ============================================================
 # Database Helpers (SQLite)
 # ============================================================
@@ -65,6 +75,9 @@ def get_db():
     """
     if "db" not in g:
         try:
+            db_dir = os.path.dirname(Config.DB_PATH)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
             g.db = sqlite3.connect(Config.DB_PATH)
             g.db.row_factory = dict_factory
             g.db.execute("PRAGMA journal_mode=WAL")
@@ -120,6 +133,9 @@ def init_db():
         app.logger.warning("schema.sql not found — skipping DB init.")
         return
 
+    db_dir = os.path.dirname(Config.DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     db = sqlite3.connect(Config.DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
 
@@ -443,7 +459,7 @@ def forgot_password():
         session["reset_otp"] = otp_code
         session["reset_otp_expiry"] = time.time() + 600  # 10 minute expiry
 
-        app.logger.info(f"OTP generated for {email}: {otp_code}")
+        app.logger.info(f"Password reset request initiated for email: {email}")
         flash(f"Security OTP code generated: {otp_code} (Valid for 10 minutes)", "info")
         return redirect(url_for("verify_otp"))
 
@@ -1695,6 +1711,14 @@ def assign_task_from_mail(mail_id):
     mail = query_db("SELECT * FROM mail_messages WHERE id = ?", (mail_id,), one=True)
     if not mail:
         return jsonify({"error": "Email not found"}), 404
+
+    # Authorization Check: User must be sender, recipient, or Admin
+    is_sender = (mail["sender_id"] == current_user.id)
+    rec_str = str(mail.get("recipient_ids", ""))
+    is_recipient = (str(current_user.id) in rec_str or current_user.email in rec_str or rec_str == '["all"]')
+
+    if not (is_sender or is_recipient or current_user.is_admin):
+        return jsonify({"error": "Access denied to target message"}), 403
 
     data = request.get_json(silent=True) or request.form
     project_id = data.get("project_id")

@@ -44,9 +44,12 @@ services:
       DB_USER: opstracker_user
       DB_PASSWORD: opstracker_pass
       DB_NAME: opstracker
+    volumes:
+      - opstracker_data:/app/data
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   mysql_data:
+  opstracker_data:

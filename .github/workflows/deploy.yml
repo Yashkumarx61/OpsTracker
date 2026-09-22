@@ -103,12 +103,12 @@ jobs:
             Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
           }
 
-          docker system prune -af --volumes
+          docker image prune -af
 
           if ($LASTEXITCODE -ne 0) {
             Write-Warning "Docker prune finished with exit code $LASTEXITCODE; continuing pipeline."
           } else {
-            Write-Host "Docker cache and dangling volumes pruned."
+            Write-Host "Dangling Docker images pruned without touching database volumes."
           }
 
       - name: Log in to GitHub Container Registry (GHCR)
@@ -184,12 +184,12 @@ jobs:
             Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
           }
 
-          docker system prune -af --volumes
+          docker image prune -af
 
           if ($LASTEXITCODE -ne 0) {
             Write-Warning "Docker prune finished with exit code $LASTEXITCODE; continuing pipeline."
           } else {
-            Write-Host "Docker cache and dangling volumes pruned."
+            Write-Host "Dangling Docker images pruned without touching database volumes."
           }
 
       - name: Authenticate Docker on Self-Hosted Windows Runner
@@ -304,10 +304,11 @@ jobs:
               throw "Host port $port is already used by: $($owners -join ', ')"
           }
 
-          Write-Host "Starting Windows container $containerName on port $port..."
+          Write-Host "Starting Windows container $containerName on port $port with persistent data volume..."
           docker run -d `
             --name $containerName `
             --restart unless-stopped `
+            -v opstracker_data:C:/app/data `
             -p "${port}:${port}" `
             $shaTag
 

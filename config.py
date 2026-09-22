@@ -18,8 +18,13 @@ class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "production")
     DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
 
-    # SQLite database (file lives next to app.py by default)
+    # Session cookie hardening
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = os.getenv("FLASK_ENV") == "production"
+
+    # SQLite database (file lives in data/ directory for volume persistence)
     DB_PATH = os.getenv(
         "DB_PATH",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "opstracker.db"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "opstracker.db"),
     )
