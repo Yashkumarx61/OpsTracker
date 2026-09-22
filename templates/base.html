@@ -66,6 +66,10 @@
                             <i data-lucide="video" style="width:16px;height:16px;"></i>
                             <span>Meet</span>
                         </a>
+                        <a href="{{ url_for('personal_workspace') }}" class="header-nav-link {% if request.endpoint == 'personal_workspace' %}active{% endif %}" title="Personal Workspace">
+                            <i data-lucide="user-check" style="width:16px;height:16px;"></i>
+                            <span>Workspace</span>
+                        </a>
                     </div>
                 </div>
 

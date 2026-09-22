@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+{% block title %}Personal Workspace — OpsTracker{% endblock %}
+
+{% block content %}
+<div class="workspace-page-wrapper" style="padding: 24px 32px; max-width: 1400px; margin: 0 auto;">
+
+    <!-- Top Personal Bookmarks Strip -->
+    <div style="background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:14px; padding:12px 20px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <i data-lucide="bookmark" style="width:18px; height:18px; color:var(--accent);"></i>
+            <span style="font-weight:700; font-size:0.95rem; color:var(--text-primary);">Quick Bookmarks</span>
+            <div id="bookmark-tags-container" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <!-- Bookmarks rendered via JS -->
+            </div>
+        </div>
+        <button type="button" class="btn-ghost" onclick="openAddBookmarkModal()" style="font-size:0.82rem; padding:6px 12px; border-radius:8px;">
+            <i data-lucide="plus" style="width:14px; height:14px;"></i> Add Bookmark
+        </button>
+    </div>
+
+    <!-- 2-Column Responsive Workspace Grid -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:28px;" class="workspace-grid">
+        
+        <!-- Left Column: Unified "My Focus" Task List -->
+        <div style="background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:16px; padding:24px; display:flex; flex-direction:column; min-height:600px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div>
+                    <h2 style="font-size:1.2rem; font-weight:800; margin:0; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="check-square" style="color:var(--indigo);"></i> My Focus & Tasks
+                    </h2>
+                    <p style="font-size:0.82rem; color:var(--text-tertiary); margin:4px 0 0 0;">Unified personal tasks and assigned team work items</p>
+                </div>
+                <button type="button" class="btn-primary" onclick="openAddPersonalTaskModal()" style="font-size:0.85rem; padding:8px 14px;">
+                    <i data-lucide="plus" style="width:14px;height:14px;"></i> New Task
+                </button>
+            </div>
+
+            <!-- Task Status Filter Tabs -->
+            <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border-subtle); padding-bottom:8px;">
+                <button type="button" class="btn-ghost task-tab active" onclick="filterWorkspaceTasks('all', this)" style="font-size:0.8rem; font-weight:600;">All Tasks</button>
+                <button type="button" class="btn-ghost task-tab" onclick="filterWorkspaceTasks('TODO', this)" style="font-size:0.8rem;">To Do</button>
+                <button type="button" class="btn-ghost task-tab" onclick="filterWorkspaceTasks('IN_PROGRESS', this)" style="font-size:0.8rem;">In Progress</button>
+                <button type="button" class="btn-ghost task-tab" onclick="filterWorkspaceTasks('COMPLETED', this)" style="font-size:0.8rem;">Completed</button>
+            </div>
+
+            <!-- Task Items Container -->
+            <div id="workspace-tasks-container" style="display:flex; flex-direction:column; gap:12px; flex:1; overflow-y:auto;">
+                <!-- Rendered dynamically -->
+                <div style="text-align:center; padding:40px; color:var(--text-tertiary);">Loading your task workspace...</div>
+            </div>
+        </div>
+
+        <!-- Right Column: Personal Scratchpad Notes -->
+        <div style="background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:16px; padding:24px; display:flex; flex-direction:column; min-height:600px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+                <div>
+                    <h2 style="font-size:1.2rem; font-weight:800; margin:0; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="file-text" style="color:var(--amber);"></i> Private Scratchpad Notes
+                    </h2>
+                    <p style="font-size:0.82rem; color:var(--text-tertiary); margin:4px 0 0 0;">Private employee scratchpad with auto-save & pinning</p>
+                </div>
+                <button type="button" class="btn-ghost" onclick="createNewNote()" style="font-size:0.85rem; padding:8px 14px; border:1px solid var(--border-subtle);">
+                    <i data-lucide="edit-3" style="width:14px;height:14px;"></i> New Note
+                </button>
+            </div>
+
+            <!-- Notes List / Active Note Editor -->
+            <div style="display:grid; grid-template-columns: 180px 1fr; gap:16px; flex:1;">
+                <!-- Pinned / Notes Selector Sidebar -->
+                <div id="notes-sidebar-list" style="border-right:1px solid var(--border-subtle); padding-right:12px; display:flex; flex-direction:column; gap:8px; max-height:500px; overflow-y:auto;">
+                    <!-- Rendered via JS -->
+                </div>
+
+                <!-- Active Note Scratchpad Editor -->
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <input type="text" id="active-note-title" placeholder="Note Title..." style="font-weight:700; font-size:1.05rem; padding:8px 12px; border-radius:8px; border:1px solid var(--border-subtle); background:var(--bg-main); color:var(--text-primary);">
+                    <textarea id="active-note-content" rows="16" placeholder="Write your private scratchpad notes here..." style="font-size:0.9rem; line-height:1.6; padding:12px; border-radius:8px; border:1px solid var(--border-subtle); background:var(--bg-main); color:var(--text-primary); resize:none; flex:1;"></textarea>
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button type="button" id="btn-pin-note" class="btn-ghost" onclick="togglePinActiveNote()" style="font-size:0.78rem;">
+                                <i data-lucide="pin" style="width:14px;height:14px;"></i> Pin Note
+                            </button>
+                            <span id="note-save-indicator" style="font-size:0.75rem; color:var(--text-tertiary);">All changes saved</span>
+                        </div>
+                        <button type="button" class="btn-ghost" onclick="deleteActiveNote()" style="color:var(--rose); font-size:0.78rem;">
+                            <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal: New Personal Task -->
+<dialog id="modal-personal-task" class="custom-modal" style="max-width:500px;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>New Personal Task</h3>
+            <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-personal-task').close()">&times;</button>
+        </div>
+        <form onsubmit="savePersonalTask(event)" style="padding:20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="label">Task Title</label>
+                <input type="text" id="ptask-title" class="form-input" placeholder="e.g. Review Quarterly Architecture Specs" required>
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="label">Description</label>
+                <textarea id="ptask-desc" class="form-input" rows="3" placeholder="Task details..."></textarea>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+                <div class="form-group">
+                    <label class="label">Priority</label>
+                    <select id="ptask-priority" class="form-input">
+                        <option value="Low">Low</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="label">Due Date</label>
+                    <input type="date" id="ptask-duedate" class="form-input">
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+                <button type="button" class="btn-ghost" onclick="document.getElementById('modal-personal-task').close()">Cancel</button>
+                <button type="submit" class="btn-primary">Create Task</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Modal: New Bookmark -->
+<dialog id="modal-add-bookmark" class="custom-modal" style="max-width:440px;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Add Quick Bookmark</h3>
+            <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-add-bookmark').close()">&times;</button>
+        </div>
+        <form onsubmit="saveBookmark(event)" style="padding:20px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="label">Bookmark Label</label>
+                <input type="text" id="bm-label" class="form-input" placeholder="e.g. Staging Server Dashboard" required>
+            </div>
+            <div class="form-group" style="margin-top:12px;">
+                <label class="label">URL</label>
+                <input type="url" id="bm-url" class="form-input" placeholder="https://..." required>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+                <button type="button" class="btn-ghost" onclick="document.getElementById('modal-add-bookmark').close()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Bookmark</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTasksData = { personal_tasks: [], org_tasks: [] };
+let currentNotes = [];
+let activeNoteId = null;
+let noteSaveTimeout = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadWorkspaceTasks();
+    loadWorkspaceNotes();
+    loadWorkspaceBookmarks();
+
+    // Auto-save scratchpad note input listener
+    document.getElementById('active-note-title').addEventListener('input', scheduleNoteSave);
+    document.getElementById('active-note-content').addEventListener('input', scheduleNoteSave);
+});
+
+async function loadWorkspaceTasks() {
+    try {
+        const res = await fetch('/api/workspace/tasks');
+        const data = await res.json();
+        currentTasksData = data;
+        renderTasksList('all');
+    } catch(err) { console.error(err); }
+}
+
+function renderTasksList(filterStatus) {
+    const container = document.getElementById('workspace-tasks-container');
+    let items = [];
+
+    // Personal Tasks
+    currentTasksData.personal_tasks.forEach(t => {
+        items.push({ ...t, is_personal: true });
+    });
+
+    // Org Tasks
+    currentTasksData.org_tasks.forEach(t => {
+        items.push({
+            id: t.id,
+            title: t.title,
+            description: t.project_title ? `Project: ${t.project_title}` : '',
+            status: t.status === 'Completed' ? 'COMPLETED' : (t.status === 'In Progress' ? 'IN_PROGRESS' : 'TODO'),
+            priority: t.priority,
+            due_date: t.due_date,
+            is_personal: false
+        });
+    });
+
+    if (filterStatus !== 'all') {
+        items = items.filter(i => i.status === filterStatus);
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-tertiary); font-size:0.85rem;">No tasks found in this view. Click 'New Task' to add a personal item.</div>`;
+        return;
+    }
+
+    container.innerHTML = items.map(item => `
+        <div style="background:var(--bg-main); border:1px solid var(--border-subtle); border-radius:10px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                <input type="checkbox" ${item.status==='COMPLETED'?'checked':''} onchange="toggleTaskStatus(${item.id}, ${item.is_personal}, this.checked)" style="width:16px; height:16px; cursor:pointer;">
+                <div>
+                    <div style="font-weight:700; font-size:0.92rem; color:var(--text-primary); ${item.status==='COMPLETED'?'text-decoration:line-through; opacity:0.6;':''}">
+                        ${item.title}
+                        ${item.is_personal ? '<span class="badge" style="font-size:0.68rem; background:rgba(99,102,241,0.15); color:var(--indigo); margin-left:6px;">Personal</span>' : '<span class="badge" style="font-size:0.68rem; background:rgba(16,185,129,0.15); color:var(--emerald); margin-left:6px;">Team Assigned</span>'}
+                    </div>
+                    ${item.description ? `<div style="font-size:0.78rem; color:var(--text-tertiary); margin-top:2px;">${item.description}</div>` : ''}
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="badge badge-priority-${(item.priority||'Medium').toLowerCase()}" style="font-size:0.7rem;">${item.priority}</span>
+                ${item.is_personal ? `<button type="button" class="btn-ghost" onclick="deletePersonalTask(${item.id})" style="padding:2px; color:var(--rose);"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>` : ''}
+            </div>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function filterWorkspaceTasks(status, btn) {
+    document.querySelectorAll('.task-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderTasksList(status);
+}
+
+function openAddPersonalTaskModal() {
+    document.getElementById('modal-personal-task').showModal();
+}
+
+async function savePersonalTask(e) {
+    e.preventDefault();
+    const title = document.getElementById('ptask-title').value;
+    const desc = document.getElementById('ptask-desc').value;
+    const priority = document.getElementById('ptask-priority').value;
+    const due_date = document.getElementById('ptask-duedate').value;
+
+    try {
+        const res = await fetch('/api/workspace/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description: desc, priority, due_date, status: 'TODO' })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('modal-personal-task').close();
+            loadWorkspaceTasks();
+        }
+    } catch(err) { console.error(err); }
+}
+
+async function toggleTaskStatus(id, isPersonal, isChecked) {
+    if (!isPersonal) return;
+    const status = isChecked ? 'COMPLETED' : 'TODO';
+    try {
+        await fetch(`/api/workspace/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        loadWorkspaceTasks();
+    } catch(err) { console.error(err); }
+}
+
+async function deletePersonalTask(id) {
+    if (!confirm('Delete this personal task?')) return;
+    try {
+        await fetch(`/api/workspace/tasks/${id}`, { method: 'DELETE' });
+        loadWorkspaceTasks();
+    } catch(err) { console.error(err); }
+}
+
+// ── Notes Scratchpad Logic ──
+async function loadWorkspaceNotes() {
+    try {
+        const res = await fetch('/api/workspace/notes');
+        const data = await res.json();
+        currentNotes = data.notes || [];
+        renderNotesSidebar();
+
+        if (currentNotes.length > 0 && !activeNoteId) {
+            selectActiveNote(currentNotes[0].id);
+        } else if (currentNotes.length === 0) {
+            createNewNote();
+        }
+    } catch(err) { console.error(err); }
+}
+
+function renderNotesSidebar() {
+    const sidebar = document.getElementById('notes-sidebar-list');
+    if (currentNotes.length === 0) {
+        sidebar.innerHTML = `<div style="font-size:0.75rem; color:var(--text-tertiary); text-align:center; padding:12px;">No notes created</div>`;
+        return;
+    }
+
+    sidebar.innerHTML = currentNotes.map(n => `
+        <div onclick="selectActiveNote(${n.id})" style="padding:8px 10px; border-radius:8px; border:1px solid ${n.id===activeNoteId?'var(--accent)':'transparent'}; background:${n.id===activeNoteId?'var(--bg-main)':'transparent'}; cursor:pointer; font-size:0.82rem; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-weight:${n.id===activeNoteId?'700':'500'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; color:var(--text-primary);">
+                ${n.title || 'Untitled'}
+            </span>
+            ${n.is_pinned ? '<i data-lucide="pin" style="width:12px;height:12px; color:var(--amber);"></i>' : ''}
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+function selectActiveNote(id) {
+    activeNoteId = id;
+    const note = currentNotes.find(n => n.id === id);
+    if (note) {
+        document.getElementById('active-note-title').value = note.title || '';
+        document.getElementById('active-note-content').value = note.content || '';
+        document.getElementById('btn-pin-note').style.color = note.is_pinned ? 'var(--amber)' : 'inherit';
+    }
+    renderNotesSidebar();
+}
+
+async function createNewNote() {
+    try {
+        const res = await fetch('/api/workspace/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'New Scratchpad Note', content: '', is_pinned: 0 })
+        });
+        const data = await res.json();
+        if (data.success) {
+            activeNoteId = data.note_id;
+            loadWorkspaceNotes();
+        }
+    } catch(err) { console.error(err); }
+}
+
+function scheduleNoteSave() {
+    document.getElementById('note-save-indicator').textContent = 'Saving...';
+    clearTimeout(noteSaveTimeout);
+    noteSaveTimeout = setTimeout(saveActiveNote, 600);
+}
+
+async function saveActiveNote() {
+    if (!activeNoteId) return;
+    const title = document.getElementById('active-note-title').value;
+    const content = document.getElementById('active-note-content').value;
+
+    try {
+        await fetch(`/api/workspace/notes/${activeNoteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content })
+        });
+        document.getElementById('note-save-indicator').textContent = 'All changes saved';
+        // Refresh sidebar titles locally
+        const n = currentNotes.find(item => item.id === activeNoteId);
+        if (n) { n.title = title; n.content = content; }
+        renderNotesSidebar();
+    } catch(err) { console.error(err); }
+}
+
+async function togglePinActiveNote() {
+    if (!activeNoteId) return;
+    const note = currentNotes.find(n => n.id === activeNoteId);
+    if (!note) return;
+    const is_pinned = note.is_pinned ? 0 : 1;
+    try {
+        await fetch(`/api/workspace/notes/${activeNoteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_pinned })
+        });
+        loadWorkspaceNotes();
+    } catch(err) { console.error(err); }
+}
+
+async function deleteActiveNote() {
+    if (!activeNoteId || !confirm('Delete active note?')) return;
+    try {
+        await fetch(`/api/workspace/notes/${activeNoteId}`, { method: 'DELETE' });
+        activeNoteId = null;
+        loadWorkspaceNotes();
+    } catch(err) { console.error(err); }
+}
+
+// ── Bookmarks Logic ──
+async function loadWorkspaceBookmarks() {
+    try {
+        const res = await fetch('/api/workspace/bookmarks');
+        const data = await res.json();
+        const container = document.getElementById('bookmark-tags-container');
+        const items = data.bookmarks || [];
+
+        if (items.length === 0) {
+            container.innerHTML = `<span style="font-size:0.78rem; color:var(--text-tertiary);">No bookmarks saved yet.</span>`;
+            return;
+        }
+
+        container.innerHTML = items.map(bm => `
+            <div style="display:inline-flex; align-items:center; gap:6px; background:var(--bg-main); border:1px solid var(--border-subtle); padding:4px 10px; border-radius:12px; font-size:0.8rem;">
+                <a href="${bm.url}" target="_blank" style="color:var(--text-primary); font-weight:600; text-decoration:none;">${bm.label}</a>
+                <button type="button" onclick="deleteBookmark(${bm.id})" style="border:none; background:none; cursor:pointer; color:var(--text-tertiary); padding:0;"><i data-lucide="x" style="width:12px;height:12px;"></i></button>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    } catch(err) { console.error(err); }
+}
+
+function openAddBookmarkModal() {
+    document.getElementById('modal-add-bookmark').showModal();
+}
+
+async function saveBookmark(e) {
+    e.preventDefault();
+    const label = document.getElementById('bm-label').value;
+    const url = document.getElementById('bm-url').value;
+
+    try {
+        const res = await fetch('/api/workspace/bookmarks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label, url })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('modal-add-bookmark').close();
+            loadWorkspaceBookmarks();
+        }
+    } catch(err) { console.error(err); }
+}
+
+async function deleteBookmark(id) {
+    try {
+        await fetch(`/api/workspace/bookmarks/${id}`, { method: 'DELETE' });
+        loadWorkspaceBookmarks();
+    } catch(err) { console.error(err); }
+}
+</script>
+{% endblock %}

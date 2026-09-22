@@ -314,6 +314,54 @@ CREATE INDEX IF NOT EXISTS idx_voice_calls_caller ON voice_calls(caller_id);
 CREATE INDEX IF NOT EXISTS idx_voice_calls_receiver ON voice_calls(receiver_id);
 
 -- -----------------------------------------------------------
+-- 20. Personal Tasks (Personal Workspace Module)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS personal_tasks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    title        TEXT NOT NULL,
+    description  TEXT,
+    status       TEXT NOT NULL DEFAULT 'TODO' CHECK(status IN ('TODO', 'IN_PROGRESS', 'COMPLETED')),
+    priority     TEXT NOT NULL DEFAULT 'Medium' CHECK(priority IN ('Low', 'Medium', 'High', 'Urgent')),
+    due_date     TEXT,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_tasks_user ON personal_tasks(user_id);
+
+-- -----------------------------------------------------------
+-- 21. Personal Notes (Personal Workspace Module)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS personal_notes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    title        TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    is_pinned    INTEGER DEFAULT 0,
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_notes_user ON personal_notes(user_id);
+
+-- -----------------------------------------------------------
+-- 22. Personal Bookmarks (Personal Workspace Module)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS personal_bookmarks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    label        TEXT NOT NULL,
+    url          TEXT NOT NULL,
+    icon_tag     TEXT DEFAULT 'bookmark',
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_bookmarks_user ON personal_bookmarks(user_id);
+
+-- -----------------------------------------------------------
 -- Seed: Default Admin User
 -- Email:    admin@opstracker.local
 -- Password: admin123

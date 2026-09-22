@@ -4034,6 +4034,98 @@ i[data-lucide], .lucide {
     box-shadow: var(--shadow-sm);
 }
 
+/* ============================================================
+   ENTERPRISE FLUID RESPONSIVENESS & ANTI-CLIPPING MODULE
+   ============================================================ */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+/* Ensure flex & grid children never overflow parent containers */
+.flex-item, .grid-item, div, section, main, article, aside {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+/* 1. Personal Workspace Responsive Breakpoints */
+@media (max-width: 992px) {
+    .workspace-grid {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+
+    .workspace-page-wrapper {
+        padding: 16px !important;
+    }
+}
+
+/* 2. OpsMail 3-Pane Responsive Layout */
+@media (max-width: 992px) {
+    .outlook-body {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .outlook-folders {
+        display: flex;
+        overflow-x: auto;
+        padding: 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .outlook-folder-item {
+        white-space: nowrap;
+    }
+}
+
+/* 3. OpsChannels Teams Responsive Rail & Sidebar */
+@media (max-width: 900px) {
+    .teams-app {
+        flex-direction: column;
+    }
+
+    .teams-app-rail {
+        width: 100% !important;
+        height: 54px !important;
+        flex-direction: row !important;
+        justify-content: space-around;
+        padding: 4px 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .teams-sidebar {
+        width: 100% !important;
+        max-height: 240px;
+        overflow-y: auto;
+    }
+}
+
+/* 4. Touch Targets & Inputs Optimization for Mobile */
+@media (max-width: 768px) {
+    button, input, select, textarea, .btn-primary, .btn-ghost, .header-nav-link {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+
+    .header-nav-links {
+        overflow-x: auto;
+        padding-bottom: 4px;
+        white-space: nowrap;
+    }
+
+    .login-master-card {
+        padding: 24px 16px !important;
+        width: 100% !important;
+    }
+}
+
 
 
 

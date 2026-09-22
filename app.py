@@ -1803,6 +1803,199 @@ def log_meeting_task(meeting_id):
 
 
 # ============================================================
+# Routes — Personal Workspace Module
+# ============================================================
+@app.route("/workspace")
+@login_required
+def personal_workspace():
+    """Render Personal Workspace dashboard with tasks, notes, and bookmarks."""
+    return render_template("personal_workspace.html")
+
+
+@app.route("/api/workspace/tasks", methods=["GET", "POST"])
+@login_required
+def api_workspace_tasks():
+    """GET personal + assigned team tasks; POST create new personal task."""
+    if request.method == "GET":
+        p_tasks = query_db(
+            "SELECT * FROM personal_tasks WHERE user_id = ? ORDER BY id DESC",
+            (current_user.id,)
+        )
+        org_tasks = query_db("""
+            SELECT t.*, p.title AS project_title
+            FROM tasks t
+            JOIN projects p ON t.project_id = p.id
+            WHERE t.assigned_to = ?
+            ORDER BY t.created_at DESC
+        """, (current_user.id,))
+
+        return jsonify({
+            "personal_tasks": p_tasks or [],
+            "org_tasks": org_tasks or []
+        })
+
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip()
+    if not title:
+        return jsonify({"error": "Task title is required"}), 400
+
+    desc = data.get("description", "").strip()
+    priority = data.get("priority", "Medium")
+    if priority not in ("Low", "Medium", "High", "Urgent"):
+        priority = "Medium"
+    status = data.get("status", "TODO")
+    if status not in ("TODO", "IN_PROGRESS", "COMPLETED"):
+        status = "TODO"
+    due_date = data.get("due_date", "")
+
+    task_id = execute_db(
+        "INSERT INTO personal_tasks (user_id, title, description, status, priority, due_date) VALUES (?, ?, ?, ?, ?, ?)",
+        (current_user.id, title, desc, status, priority, due_date)
+    )
+    return jsonify({"success": True, "task_id": task_id, "message": "Personal task created successfully"})
+
+
+@app.route("/api/workspace/tasks/<int:task_id>", methods=["PUT", "DELETE"])
+@login_required
+def api_workspace_task_detail(task_id):
+    """PUT update / DELETE personal task (Strict user_id scoping)."""
+    existing = query_db("SELECT id FROM personal_tasks WHERE id = ? AND user_id = ?", (task_id, current_user.id), one=True)
+    if not existing:
+        return jsonify({"error": "Access denied or record not found"}), 403
+
+    if request.method == "DELETE":
+        execute_db("DELETE FROM personal_tasks WHERE id = ? AND user_id = ?", (task_id, current_user.id))
+        return jsonify({"success": True, "message": "Personal task deleted"})
+
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title")
+    desc = data.get("description")
+    status = data.get("status")
+    priority = data.get("priority")
+    due_date = data.get("due_date")
+
+    fields = []
+    params = []
+    if title is not None:
+        fields.append("title = ?")
+        params.append(title.strip())
+    if desc is not None:
+        fields.append("description = ?")
+        params.append(desc.strip())
+    if status is not None and status in ("TODO", "IN_PROGRESS", "COMPLETED"):
+        fields.append("status = ?")
+        params.append(status)
+    if priority is not None and priority in ("Low", "Medium", "High", "Urgent"):
+        fields.append("priority = ?")
+        params.append(priority)
+    if due_date is not None:
+        fields.append("due_date = ?")
+        params.append(due_date)
+
+    if fields:
+        params.extend([task_id, current_user.id])
+        sql = f"UPDATE personal_tasks SET {', '.join(fields)} WHERE id = ? AND user_id = ?"
+        execute_db(sql, tuple(params))
+
+    return jsonify({"success": True, "message": "Personal task updated"})
+
+
+@app.route("/api/workspace/notes", methods=["GET", "POST"])
+@login_required
+def api_workspace_notes():
+    """GET notes for current user; POST create new personal note."""
+    if request.method == "GET":
+        notes = query_db(
+            "SELECT * FROM personal_notes WHERE user_id = ? ORDER BY is_pinned DESC, updated_at DESC",
+            (current_user.id,)
+        )
+        return jsonify({"notes": notes or []})
+
+    data = request.get_json(silent=True) or request.form
+    title = data.get("title", "").strip() or "Untitled Scratchpad Note"
+    content = data.get("content", "").strip()
+    is_pinned = 1 if data.get("is_pinned") in (True, 1, "1", "true") else 0
+
+    note_id = execute_db(
+        "INSERT INTO personal_notes (user_id, title, content, is_pinned) VALUES (?, ?, ?, ?)",
+        (current_user.id, title, content, is_pinned)
+    )
+    return jsonify({"success": True, "note_id": note_id, "message": "Note created"})
+
+
+@app.route("/api/workspace/notes/<int:note_id>", methods=["PUT", "DELETE"])
+@login_required
+def api_workspace_note_detail(note_id):
+    """PUT update / DELETE personal note (Strict user_id scoping)."""
+    existing = query_db("SELECT id FROM personal_notes WHERE id = ? AND user_id = ?", (note_id, current_user.id), one=True)
+    if not existing:
+        return jsonify({"error": "Access denied or record not found"}), 403
+
+    if request.method == "DELETE":
+        execute_db("DELETE FROM personal_notes WHERE id = ? AND user_id = ?", (note_id, current_user.id))
+        return jsonify({"success": True, "message": "Note deleted"})
+
+    data = request.get_json(silent=True) or request.form
+    fields = []
+    params = []
+    if "title" in data:
+        fields.append("title = ?")
+        params.append(str(data["title"]).strip())
+    if "content" in data:
+        fields.append("content = ?")
+        params.append(str(data["content"]).strip())
+    if "is_pinned" in data:
+        fields.append("is_pinned = ?")
+        params.append(1 if data["is_pinned"] in (True, 1, "1", "true") else 0)
+
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    params.extend([note_id, current_user.id])
+
+    sql = f"UPDATE personal_notes SET {', '.join(fields)} WHERE id = ? AND user_id = ?"
+    execute_db(sql, tuple(params))
+    return jsonify({"success": True, "message": "Note updated"})
+
+
+@app.route("/api/workspace/bookmarks", methods=["GET", "POST"])
+@login_required
+def api_workspace_bookmarks():
+    """GET bookmarks for current user; POST create new bookmark."""
+    if request.method == "GET":
+        bookmarks = query_db(
+            "SELECT * FROM personal_bookmarks WHERE user_id = ? ORDER BY id DESC",
+            (current_user.id,)
+        )
+        return jsonify({"bookmarks": bookmarks or []})
+
+    data = request.get_json(silent=True) or request.form
+    label = data.get("label", "").strip()
+    url = data.get("url", "").strip()
+    icon_tag = data.get("icon_tag", "bookmark").strip()
+
+    if not label or not url:
+        return jsonify({"error": "Label and URL are required"}), 400
+
+    bm_id = execute_db(
+        "INSERT INTO personal_bookmarks (user_id, label, url, icon_tag) VALUES (?, ?, ?, ?)",
+        (current_user.id, label, url, icon_tag)
+    )
+    return jsonify({"success": True, "bookmark_id": bm_id, "message": "Bookmark saved"})
+
+
+@app.route("/api/workspace/bookmarks/<int:bookmark_id>", methods=["DELETE"])
+@login_required
+def api_workspace_bookmark_delete(bookmark_id):
+    """DELETE bookmark (Strict user_id scoping)."""
+    existing = query_db("SELECT id FROM personal_bookmarks WHERE id = ? AND user_id = ?", (bookmark_id, current_user.id), one=True)
+    if not existing:
+        return jsonify({"error": "Access denied or record not found"}), 403
+
+    execute_db("DELETE FROM personal_bookmarks WHERE id = ? AND user_id = ?", (bookmark_id, current_user.id))
+    return jsonify({"success": True, "message": "Bookmark removed"})
+
+
+
+# ============================================================
 # Routes — Health Check (CI/CD & IIS monitoring)
 # ============================================================
 @app.route("/health")
